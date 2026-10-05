@@ -29,6 +29,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -48,6 +49,10 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import androidx.navigation3.ui.NavDisplay
+import com.nuvio.app.agent.AgentBridge
+import com.nuvio.app.agent.AgentNavigationHandle
+import com.nuvio.app.agent.AgentPlayRequest
+import com.nuvio.app.agent.AgentSettingsPage
 import com.nuvio.app.core.ui.LocalPosterClickAnchor
 import com.nuvio.app.navigation.PosterNavigationState
 import com.nuvio.app.navigation.posterNavigationEntry
@@ -1047,6 +1052,71 @@ internal fun MainAppContent(
                     startFromBeginning = false,
                 )
             }
+
+        val agentLaunchPlayback by rememberUpdatedState<(AgentPlayRequest) -> Unit> { request ->
+            launchPlaybackWithDownloadPreference(
+                type = request.type,
+                videoId = request.videoId,
+                parentMetaId = request.parentMetaId,
+                parentMetaType = request.parentMetaType,
+                title = request.title,
+                logo = request.logo,
+                poster = request.poster,
+                background = request.background,
+                seasonNumber = request.seasonNumber,
+                episodeNumber = request.episodeNumber,
+                episodeTitle = request.episodeTitle,
+                episodeThumbnail = request.episodeThumbnail,
+                pauseDescription = null,
+                resumePositionMs = request.resumePositionMs,
+                resumeProgressFraction = null,
+                manualSelection = request.manualSelection,
+                startFromBeginning = request.startFromBeginning,
+            )
+        }
+        val agentActivateTab by rememberUpdatedState<(AppScreenTab) -> Unit> { tab -> activateTab(tab) }
+        DisposableEffect(navController, ownsAppRuntime) {
+            if (!ownsAppRuntime) return@DisposableEffect onDispose {}
+            val handle = object : AgentNavigationHandle {
+                override val currentRoute: AppRoute? get() = navController.currentRoute
+                override val routes: List<AppRoute> get() = navController.routes
+                override val selectedTab: AppScreenTab get() = selectedTab
+                override fun selectTab(tab: AppScreenTab) = agentActivateTab(tab)
+                override fun navigate(route: AppRoute) = navController.navigate(route)
+                override fun back(): Boolean = navController.popBackStack()
+                override fun openDetails(type: String, id: String, title: String?) {
+                    navController.navigate(DetailRoute(type = type, id = id, title = title ?: detailsFallbackTitle)) {
+                        launchSingleTop = true
+                    }
+                }
+                override fun openCatalog(title: String, subtitle: String?, target: CatalogTarget) {
+                    val launchId = CatalogLaunchStore.put(CatalogLaunch(title = title, subtitle = subtitle.orEmpty(), target = target))
+                    navController.navigate(CatalogRoute(launchId = launchId, title = title, subtitle = subtitle))
+                }
+                override fun openSettingsPage(page: AgentSettingsPage) {
+                    while (navController.currentRoute !is TabsRoute && navController.popBackStack()) Unit
+                    when (page) {
+                        AgentSettingsPage.Downloads -> navController.navigate(DownloadsRoute(downloadsTitle))
+                        AgentSettingsPage.Collections -> navController.navigate(CollectionsRoute(collectionsTitle))
+                        AgentSettingsPage.Addons -> navController.navigate(AddonsSettingsRoute(addonsSettingsTitle))
+                        AgentSettingsPage.Plugins -> navController.navigate(PluginsSettingsRoute(pluginsSettingsTitle))
+                        AgentSettingsPage.Account -> navController.navigate(AccountSettingsRoute(accountSettingsTitle))
+                        AgentSettingsPage.Homescreen -> navController.navigate(HomescreenSettingsRoute(homescreenSettingsTitle))
+                        AgentSettingsPage.MetaScreen -> navController.navigate(MetaScreenSettingsRoute(metaScreenSettingsTitle))
+                        AgentSettingsPage.ContinueWatching -> navController.navigate(ContinueWatchingSettingsRoute(continueWatchingSettingsTitle))
+                        AgentSettingsPage.LicensesAttributions -> navController.navigate(LicensesAttributionsSettingsRoute(licensesSettingsTitle))
+                        AgentSettingsPage.Root -> agentActivateTab(AppScreenTab.Settings)
+                        else -> {
+                            requestedSettingsPageName = page.name
+                            agentActivateTab(AppScreenTab.Settings)
+                        }
+                    }
+                }
+                override fun openStreams(request: AgentPlayRequest) = agentLaunchPlayback(request)
+            }
+            AgentBridge.attachNavigation(handle)
+            onDispose { AgentBridge.detachNavigation(handle) }
+        }
 
         val onCatalogClick: (HomeCatalogSection) -> Unit = { section ->
             val launchId = CatalogLaunchStore.put(

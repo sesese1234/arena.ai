@@ -490,9 +490,7 @@ private fun PlayerScreenRuntime.RenderPlayerModals(displayedPositionMs: Long) {
         audioTracks = audioTracks,
         selectedAudioIndex = selectedAudioIndex,
         onAudioTrackSelected = { index ->
-            selectedAudioIndex = index
-            persistAudioPreference(audioTracks.firstOrNull { it.index == index })
-            playerController?.selectAudioTrack(index)
+            selectAudioTrackFromUser(index)
             scope.launch {
                 kotlinx.coroutines.delay(200)
                 showAudioModal = false
@@ -509,29 +507,8 @@ private fun PlayerScreenRuntime.RenderPlayerModals(displayedPositionMs: Long) {
         subtitleDelayMs = subtitleDelayMs,
         selectedAddonSubtitle = selectedAddonSubtitle,
         subtitleAutoSyncState = subtitleAutoSyncState,
-        onBuiltInSubtitleTrackSelected = { index ->
-            val wasCustom = useCustomSubtitles
-            isUserExplicitSubtitleSelection = true
-            preferredSubtitleSelectionApplied = true
-            selectedSubtitleIndex = index
-            selectedAddonSubtitleId = null
-            useCustomSubtitles = false
-            persistInternalSubtitlePreference(subtitleTracks.firstOrNull { it.index == index })
-            if (wasCustom) {
-                playerController?.clearExternalSubtitleAndSelect(index)
-            } else {
-                playerController?.selectSubtitleTrack(index)
-            }
-        },
-        onAddonSubtitleSelected = { addon ->
-            isUserExplicitSubtitleSelection = true
-            selectedAddonSubtitleId = addon.selectionKey
-            selectedSubtitleIndex = -1
-            useCustomSubtitles = true
-            preferredSubtitleSelectionApplied = true
-            persistAddonSubtitlePreference(addon)
-            playerController?.setSubtitleUri(addon.url)
-        },
+        onBuiltInSubtitleTrackSelected = { index -> selectBuiltInSubtitleFromUser(index) },
+        onAddonSubtitleSelected = { addon -> selectAddonSubtitleFromUser(addon) },
         onFetchAddonSubtitles = { fetchAddonSubtitlesForActiveItem() },
         onSubtitleStyleChanged = PlayerSettingsRepository::setSubtitleStyle,
         onSubtitleDelayChanged = { delayMs -> setSubtitleDelay(delayMs) },

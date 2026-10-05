@@ -5,6 +5,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
+import com.nuvio.app.agent.AgentBridge
+import com.nuvio.app.agent.AgentPlayRequest
+import com.nuvio.app.agent.AgentStreamScreenHandle
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -655,6 +660,40 @@ internal fun StreamDestination(
         if (reuseNavigated) {
             StreamsRepository.setOverlayVisible(false)
         }
+    }
+
+    val agentOpenStream by rememberUpdatedState<(StreamItem) -> Unit> { stream ->
+        openSelectedStream(
+            stream = stream,
+            resolvedResumePositionMs = launch.resumePositionMs,
+            resolvedResumeProgressFraction = launch.resumeProgressFraction,
+            forceExternal = false,
+            forceInternal = false,
+        )
+    }
+    DisposableEffect(route.launchId) {
+        val handle = object : AgentStreamScreenHandle {
+            override val request = AgentPlayRequest(
+                type = launch.type,
+                videoId = effectiveVideoId,
+                parentMetaId = launch.parentMetaId ?: launch.videoId,
+                parentMetaType = launch.parentMetaType ?: launch.type,
+                title = launch.title,
+                poster = launch.poster,
+                background = launch.background,
+                logo = launch.logo,
+                seasonNumber = launch.seasonNumber,
+                episodeNumber = launch.episodeNumber,
+                episodeTitle = launch.episodeTitle,
+                episodeThumbnail = launch.episodeThumbnail,
+                resumePositionMs = launch.resumePositionMs,
+                manualSelection = launch.manualSelection,
+                startFromBeginning = launch.startFromBeginning,
+            )
+            override fun playStream(stream: StreamItem) = agentOpenStream(stream)
+        }
+        AgentBridge.attachStreams(handle)
+        onDispose { AgentBridge.detachStreams(handle) }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {

@@ -360,3 +360,37 @@ private fun PlayerScreenRuntime.disableAutomaticSubtitleSelection() {
     selectedAddonSubtitleId = null
     useCustomSubtitles = false
 }
+
+/** User picked an audio track (audio sheet or in-app assistant). */
+internal fun PlayerScreenRuntime.selectAudioTrackFromUser(index: Int) {
+    selectedAudioIndex = index
+    persistAudioPreference(audioTracks.firstOrNull { it.index == index })
+    playerController?.selectAudioTrack(index)
+}
+
+/** User picked a built-in subtitle track, or -1 for off (subtitle sheet or in-app assistant). */
+internal fun PlayerScreenRuntime.selectBuiltInSubtitleFromUser(index: Int) {
+    val wasCustom = useCustomSubtitles
+    isUserExplicitSubtitleSelection = true
+    preferredSubtitleSelectionApplied = true
+    selectedSubtitleIndex = index
+    selectedAddonSubtitleId = null
+    useCustomSubtitles = false
+    persistInternalSubtitlePreference(subtitleTracks.firstOrNull { it.index == index })
+    if (wasCustom) {
+        playerController?.clearExternalSubtitleAndSelect(index)
+    } else {
+        playerController?.selectSubtitleTrack(index)
+    }
+}
+
+/** User picked an addon subtitle (subtitle sheet or in-app assistant). */
+internal fun PlayerScreenRuntime.selectAddonSubtitleFromUser(addon: AddonSubtitle) {
+    isUserExplicitSubtitleSelection = true
+    selectedAddonSubtitleId = addon.selectionKey
+    selectedSubtitleIndex = -1
+    useCustomSubtitles = true
+    preferredSubtitleSelectionApplied = true
+    persistAddonSubtitlePreference(addon)
+    playerController?.setSubtitleUri(addon.url)
+}

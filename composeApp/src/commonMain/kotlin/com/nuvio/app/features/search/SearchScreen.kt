@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import com.nuvio.app.agent.AgentBridge
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -130,6 +131,13 @@ fun SearchScreen(
     val networkStatusUiState by NetworkStatusRepository.uiState.collectAsStateWithLifecycle()
     var query by rememberSaveable { mutableStateOf("") }
     var lastRequestedQuery by rememberSaveable { mutableStateOf<String?>(null) }
+    val agentSearchQuery by AgentBridge.pendingSearchQuery.collectAsStateWithLifecycle()
+    LaunchedEffect(agentSearchQuery) {
+        agentSearchQuery?.let { requested ->
+            query = requested
+            AgentBridge.consumeSearchQuery(requested)
+        }
+    }
     var observedOfflineState by remember { mutableStateOf(false) }
     val discoverInFocus by remember(query, listState) {
         derivedStateOf {
