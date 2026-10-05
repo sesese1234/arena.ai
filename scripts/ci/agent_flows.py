@@ -228,7 +228,7 @@ def main():
     parser.add_argument("--addon-host", default="10.0.2.2:7000")
     parser.add_argument("--title", default="Agent tasks")
     args = parser.parse_args()
-    flow = ui.Flow(f"{args.title} — provider: {AGENT_PROVIDER}")
+    flow = ui.Flow(f"{args.title} — provider: {AGENT_PROVIDER}", before=ui.ensure_app)
     if not flow.step("Configure provider in assistant settings", configure_provider):
         flow.report()
         return

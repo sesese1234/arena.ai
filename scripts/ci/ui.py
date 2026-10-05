@@ -30,6 +30,7 @@ class Node:
         self.cls = el.get("class") or ""
         self.clickable = el.get("clickable") == "true"
         self.focused = el.get("focused") == "true"
+        self.pkg = el.get("package") or ""
         m = re.match(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", el.get("bounds") or "")
         self.bounds = tuple(int(x) for x in m.groups()) if m else (0, 0, 0, 0)
 
@@ -67,6 +68,7 @@ def dump(name=None):
 
 def visible_labels(nodes=None, limit=60):
     nodes = nodes if nodes is not None else dump()
+    nodes = [n for n in nodes if not n.pkg or n.pkg == PACKAGE] or nodes
     labels = []
     for n in nodes:
         if n.label and n.label not in labels:
@@ -112,7 +114,7 @@ def find(pattern, timeout=20, exact=False, clickable_only=False):
     regex = re.compile(pattern if not exact else f"^{re.escape(pattern)}$", re.IGNORECASE)
     deadline = time.time() + timeout
     while time.time() < deadline:
-        nodes = dump()
+        nodes = [n for n in dump() if not n.pkg or n.pkg == PACKAGE]
         matches = [n for n in nodes if (regex.search(n.text) or regex.search(n.desc)) and (n.clickable or not clickable_only)]
         if matches:
             return matches[0]
@@ -183,18 +185,37 @@ def current_focus():
     return m.group(1) if m else out[:200]
 
 
+def app_in_foreground():
+    out = sh("shell", "dumpsys", "activity", "activities")
+    m = re.search(r"(?:topResumedActivity|mResumedActivity|ResumedActivity)[^\n]*?\s(\S+)/", out)
+    return bool(m and m.group(1) == PACKAGE)
+
+
+def ensure_app():
+    """Relaunches the app if a previous step left another app (launcher, browser) on top."""
+    if not app_in_foreground():
+        print(f"  [ensure_app] {PACKAGE} not in foreground ({current_focus()}); relaunching", flush=True)
+        launch()
+        time.sleep(3)
+
+
 class Flow:
     """Runs named steps, records PASS/FAIL with evidence, never aborts the whole run."""
 
-    def __init__(self, title):
+    def __init__(self, title, before=None):
         self.title = title
         self.results = []
+        self.before = before
 
     def step(self, name, fn):
         print(f"\n=== {name}", flush=True)
         started = time.time()
         try:
+            if self.before:
+                self.before()
             detail = fn() or ""
+            if not app_in_foreground():
+                raise AssertionError(f"step ended outside the app ({current_focus()})")
             status = "PASS"
         except Exception as error:  # noqa: BLE001
             detail = f"{type(error).__name__}: {error}"

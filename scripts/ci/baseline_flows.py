@@ -34,10 +34,17 @@ def go_home():
 
 def onboarding():
     ui.screenshot("01_launch")
-    guest = ui.find(r"Continue Without Account", timeout=45)
-    if guest:
-        ui.tap(guest)
-        time.sleep(3)
+    guest = None
+    for _ in range(6):
+        guest = ui.find(r"Continue Without Account", timeout=8)
+        if guest:
+            break
+        ui.hide_keyboard()
+        ui.swipe_up()
+    if guest is None:
+        raise AssertionError(f"no 'Continue Without Account' on the sign-in screen; visible {ui.visible_labels()}")
+    ui.tap(guest)
+    time.sleep(4)
     # Profile picker (first run may ask to pick or create a profile).
     for _ in range(3):
         nodes = ui.screenshot("02_after_auth")
@@ -235,7 +242,7 @@ def main():
 
     ui.sh("logcat", "-c")
     ui.launch()
-    flow = Flow(args.title)
+    flow = Flow(args.title, before=ui.ensure_app)
     flow.step("Onboarding (continue without account)", onboarding)
     flow.step("Install addon: Cinemeta", install_addon(CINEMETA, "Cinemeta"))
     flow.step("Install addon: OpenSubtitles", install_addon(OPENSUBS, "OpenSubtitles"))
