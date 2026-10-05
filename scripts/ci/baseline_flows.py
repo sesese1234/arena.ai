@@ -74,11 +74,20 @@ def install_addon(url, expect_name):
         ui.tap(field)
         ui.type_text(url)
         ui.key(66)  # enter
+        ui.hide_keyboard()
         install = ui.find(r"^(Install|Install Addon|Add)$", timeout=5)
         if install:
             ui.tap(install)
-        ui.wait_for(expect_name, timeout=40)
+        done = ui.find(r"^(Done|Close)$", timeout=40)
+        ui.screenshot(f"addons_modal_{expect_name.split()[0].lower()}")
+        modal_text = " ".join(ui.visible_labels())
+        if done:
+            ui.tap(done)
+        if "Install Failed" in modal_text:
+            raise AssertionError(f"install failed: {modal_text[:300]}")
+        ui.wait_for(expect_name, timeout=20)
         ui.screenshot(f"addons_after_{expect_name.split()[0].lower()}")
+        ui.back()
         return f"{expect_name} listed"
     return run
 
@@ -183,7 +192,7 @@ def library_flow():
         raise AssertionError("no Inception result")
     ui.tap(target)
     time.sleep(4)
-    save = ui.find(r"(Add to Library|Library|Save|Bookmark)", timeout=8)
+    save = ui.find(r"^(Add to library|Remove from library)$", timeout=8)
     if save is None:
         raise AssertionError(f"no library button; visible {ui.visible_labels()}")
     ui.tap(save)
@@ -214,23 +223,25 @@ def remove_addon():
     open_settings_tab()
     ui.tap_text(r"^Addons$", timeout=10)
     time.sleep(2)
-    ui.screenshot("70_addons_list")
-    target = ui.find(r"OpenSubtitles", timeout=10)
-    if target is None:
-        raise AssertionError("OpenSubtitles not installed")
-    remove = ui.find(r"(Remove|Delete|Uninstall)", timeout=5)
-    if remove is None:
-        ui.tap(target)
-        remove = ui.wait_for(r"(Remove|Delete|Uninstall)", timeout=8)
-    ui.tap(remove)
-    confirm = ui.find(r"^(Remove|Delete|Confirm|OK|Yes)$", timeout=4)
-    if confirm:
-        ui.tap(confirm)
+    for _ in range(4):
+        target = ui.find(r"OpenSubtitles", timeout=5)
+        deletes = [n for n in ui.dump() if n.desc == "Delete addon"]
+        if target and deletes:
+            # The row's delete button is the first one at or below the addon title.
+            row = sorted((d for d in deletes if d.bounds[1] >= target.bounds[1] - 40), key=lambda d: d.bounds[1])
+            if row:
+                ui.tap(row[0])
+                break
+        ui.swipe_up()
+    else:
+        raise AssertionError(f"OpenSubtitles row or its delete button not found; visible {ui.visible_labels()}")
+    ui.screenshot("70_delete_confirm")
+    ui.tap_text(r"^Yes$", timeout=8)
     time.sleep(2)
     ui.screenshot("71_addons_after_remove")
     if ui.find(r"OpenSubtitles", timeout=3):
         raise AssertionError("OpenSubtitles still listed")
-    return "removed"
+    return "removed (after Yes in the confirm dialog)"
 
 
 def main():
