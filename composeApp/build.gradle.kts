@@ -336,6 +336,13 @@ tasks.withType<KotlinCompilationTask<*>>().configureEach {
     dependsOn(generateRuntimeConfigs)
 }
 
+// Robolectric downloads android-all jars at test time; allow a Maven Central mirror (CI rate limits).
+providers.environmentVariable("ROBOLECTRIC_REPO").orNull?.takeIf { it.isNotBlank() }?.let { repo ->
+    tasks.withType<Test>().configureEach {
+        systemProperty("robolectric.dependency.repo.url", repo)
+    }
+}
+
 kotlin {
     android {
         namespace = "com.nuvio.app"

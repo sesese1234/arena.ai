@@ -129,7 +129,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "../composeApp/proguard-rules.pro",
             )
-            signingConfig = signingConfigs.getByName("release")
+            // Forks/CI without the upstream keystore still get an installable (debug-signed) release APK.
+            signingConfig = if (releaseKeystore != null) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             ndk {
                 debugSymbolLevel = "FULL"
             }
