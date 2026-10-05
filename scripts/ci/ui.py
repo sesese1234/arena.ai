@@ -83,6 +83,31 @@ def screenshot(name):
     return nodes
 
 
+_recordings = {}
+
+
+def start_recording(name, limit_s=180):
+    """Starts `screenrecord` on the device (max 180 s per Android)."""
+    remote = f"/sdcard/{name}.mp4"
+    proc = subprocess.Popen([ADB, "shell", "screenrecord", "--time-limit", str(limit_s), "--bit-rate", "4000000", remote])
+    _recordings[name] = (proc, remote)
+    time.sleep(1)
+
+
+def stop_recording(name):
+    proc, remote = _recordings.pop(name, (None, None))
+    if proc is None:
+        return
+    sh("shell", "pkill", "-INT", "screenrecord")
+    try:
+        proc.wait(timeout=15)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+    time.sleep(2)
+    subprocess.run([ADB, "pull", remote, os.path.join(OUT, f"{name}.mp4")], capture_output=True, timeout=120)
+    sh("shell", "rm", "-f", remote)
+
+
 def find(pattern, timeout=20, exact=False, clickable_only=False):
     regex = re.compile(pattern if not exact else f"^{re.escape(pattern)}$", re.IGNORECASE)
     deadline = time.time() + timeout

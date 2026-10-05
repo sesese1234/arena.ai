@@ -113,6 +113,14 @@ def chat_transcript():
 
 
 def ask(prompt, name, timeout=240, approve=None):
+    ui.start_recording(f"agent_{name}", limit_s=min(timeout, 180))
+    try:
+        return _ask(prompt, name, timeout, approve)
+    finally:
+        ui.stop_recording(f"agent_{name}")
+
+
+def _ask(prompt, name, timeout, approve):
     open_chat()
     tap_id("agent_input")
     ui.type_text(prompt)
