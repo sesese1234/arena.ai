@@ -34,7 +34,7 @@ class OpenAiCompatibleClient(
             val toolCalls = ToolCallAccumulator()
             var stopReason: String? = null
             var usage: TokenUsage? = null
-            val source = response.body?.source() ?: throw LlmException("$providerName returned an empty body")
+            val source = response.body.source()
             val contentType = response.header("content-type").orEmpty()
             if (!contentType.contains("event-stream") && contentType.contains("json")) {
                 // Some gateways ignore stream=true; accept a plain JSON completion.

@@ -56,7 +56,7 @@ class AnthropicClient(
         var stopReason: String? = null
         var inputTokens = 0
         var outputTokens = 0
-        val source = response.body?.source() ?: throw LlmException("$providerName returned an empty body")
+        val source = response.body.source()
         source.forEachSseEvent { event ->
             val json = runCatching { AgentJson.parseToJsonElement(event.data).jsonObject }.getOrNull()
                 ?: return@forEachSseEvent true

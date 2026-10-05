@@ -86,7 +86,7 @@ internal fun ToolRegistry.registerAddonProtocolTools(http: OkHttpClient) {
     suspend fun getJson(url: String): JsonElement = withContext(Dispatchers.IO) {
         val request = Request.Builder().url(url).header("Accept", "application/json").build()
         http.newCall(request).execute().use { response ->
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string()
             if (!response.isSuccessful) throw ToolFailure("HTTP ${response.code} from $url: ${body.take(200)}", "http_${response.code}")
             runCatching { AgentJson.parseToJsonElement(body) }.getOrElse { throw ToolFailure("Addon returned invalid JSON", "invalid_response") }
         }

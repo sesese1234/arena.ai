@@ -203,7 +203,7 @@ object AgentController {
             try {
                 val body = AgentHttp.client.newCall(Request.Builder().url(url).header("User-Agent", "NuvioAgent").build()).execute().use { response ->
                     if (!response.isSuccessful) error("HTTP ${response.code}")
-                    response.body?.string().orEmpty()
+                    response.body.string()
                 }
                 val parsed = ModelsCatalog.parse(body)
                 if (parsed.providers.isEmpty()) error("empty catalog")

@@ -65,7 +65,7 @@ fun <T> streamingCall(
         }
         response.use { resp ->
             if (!resp.isSuccessful) {
-                val body = runCatching { resp.body?.string().orEmpty() }.getOrDefault("")
+                val body = runCatching { resp.body.string() }.getOrDefault("")
                 throw classifyHttpError(providerName, resp.code, body, resp.header("retry-after"))
             }
             try {

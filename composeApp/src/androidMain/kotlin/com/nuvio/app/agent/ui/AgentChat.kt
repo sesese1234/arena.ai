@@ -325,6 +325,8 @@ private fun pretty(json: String?): String {
     if (json.isNullOrBlank()) return "—"
     return runCatching {
         val element = AgentJson.parseToJsonElement(json)
-        kotlinx.serialization.json.Json { prettyPrint = true }.encodeToString(JsonElement.serializer(), element)
+        PrettyJson.encodeToString(JsonElement.serializer(), element)
     }.getOrDefault(json)
 }
+
+private val PrettyJson = kotlinx.serialization.json.Json { prettyPrint = true }

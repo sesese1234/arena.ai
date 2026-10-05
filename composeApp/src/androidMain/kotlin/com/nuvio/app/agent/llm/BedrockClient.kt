@@ -58,7 +58,7 @@ class BedrockClient(
             val toolCalls = ToolCallAccumulator()
             var stopReason: String? = null
             var usage: TokenUsage? = null
-            val source = response.body?.source() ?: throw LlmException("$providerName returned an empty body")
+            val source = response.body.source()
             val decoder = AwsEventStreamDecoder(source)
             while (true) {
                 currentCoroutineContext().ensureActive()

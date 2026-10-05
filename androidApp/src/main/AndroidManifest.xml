@@ -12,6 +12,7 @@
         android:name="com.nuvio.app.NuvioApplication"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/agent_data_extraction_rules"
+        android:fullBackupContent="@xml/agent_backup_rules"
         android:enableOnBackInvokedCallback="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"

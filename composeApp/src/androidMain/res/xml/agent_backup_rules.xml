@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pre-Android 12 counterpart of agent_data_extraction_rules.xml (backup is disabled anyway). -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="nuvio_agent_secrets.xml" />
+    <exclude domain="sharedpref" path="nuvio_agent_config.xml" />
+    <exclude domain="sharedpref" path="nuvio_agent_memory.xml" />
+    <exclude domain="file" path="agent/" />
+</full-backup-content>

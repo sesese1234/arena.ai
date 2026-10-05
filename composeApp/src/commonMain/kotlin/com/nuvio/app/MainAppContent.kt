@@ -1094,7 +1094,9 @@ internal fun MainAppContent(
                     navController.navigate(CatalogRoute(launchId = launchId, title = title, subtitle = subtitle))
                 }
                 override fun openSettingsPage(page: AgentSettingsPage) {
-                    while (navController.currentRoute !is TabsRoute && navController.popBackStack()) Unit
+                    while (navController.currentRoute !is TabsRoute) {
+                        if (!navController.popBackStack()) break
+                    }
                     when (page) {
                         AgentSettingsPage.Downloads -> navController.navigate(DownloadsRoute(downloadsTitle))
                         AgentSettingsPage.Collections -> navController.navigate(CollectionsRoute(collectionsTitle))

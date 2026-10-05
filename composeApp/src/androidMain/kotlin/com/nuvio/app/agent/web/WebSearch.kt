@@ -141,14 +141,14 @@ class WebSearch(
     private fun execute(request: Request, rejectAccepted: Boolean): String =
         http.newCall(request).execute().use { response ->
             if (rejectAccepted && response.code == 202) throw ToolFailure("rate limited (HTTP 202)", "rate_limited")
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string()
             if (!response.isSuccessful) throw ToolFailure("HTTP ${response.code}: ${body.take(200)}", "http_${response.code}")
             body
         }
 
     private fun execute(request: Request): String =
         http.newCall(request).execute().use { response ->
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string()
             if (!response.isSuccessful) throw ToolFailure("HTTP ${response.code}: ${body.take(200)}", "http_${response.code}")
             body
         }

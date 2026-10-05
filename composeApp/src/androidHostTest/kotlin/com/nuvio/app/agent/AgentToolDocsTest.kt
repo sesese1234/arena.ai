@@ -19,7 +19,7 @@ class AgentToolDocsTest {
             ?: File("../docs/agent-tools.md")
         val expected = render(fullCatalog().all)
         if (System.getenv("UPDATE_AGENT_DOCS") == "1") {
-            docFile.parentFile.mkdirs()
+            docFile.parentFile?.mkdirs()
             docFile.writeText(expected)
         }
         assertEquals(expected, docFile.takeIf { it.exists() }?.readText(), "docs/agent-tools.md is stale; regenerate with UPDATE_AGENT_DOCS=1 (see test KDoc)")

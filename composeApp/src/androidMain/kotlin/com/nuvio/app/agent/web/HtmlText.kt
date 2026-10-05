@@ -94,7 +94,7 @@ class UrlFetcher(
             .build()
         http.newCall(request).execute().use { response ->
             val contentType = response.header("content-type").orEmpty()
-            val body = response.body ?: throw ToolFailure("Empty response", "empty")
+            val body = response.body
             if (contentType.startsWith("image/") || contentType.startsWith("video/") || contentType.startsWith("audio/") ||
                 contentType.contains("octet-stream") || contentType.contains("zip")
             ) {

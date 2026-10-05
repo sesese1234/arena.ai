@@ -57,7 +57,7 @@ class GoogleAccessTokenProvider(
             )
             .build()
         http.newCall(request).execute().use { response ->
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string()
             if (!response.isSuccessful) throw classifyHttpError("Google OAuth", response.code, body, null)
             val json = AgentJson.parseToJsonElement(body).jsonObject
             val token = json["access_token"]?.jsonPrimitive?.contentOrNull ?: throw LlmException("Google OAuth returned no token")

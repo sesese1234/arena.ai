@@ -136,7 +136,9 @@ internal fun ToolRegistry.registerNavigationTools() {
         run { args ->
             val tab = AppScreenTab.fromName(args.string("tab"))
             val nav = navigation()
-            while (nav.currentRoute !is TabsRoute && nav.back()) Unit
+            while (nav.currentRoute !is TabsRoute) {
+                if (!nav.back()) break
+            }
             nav.selectTab(tab)
             okResult("tab" to tab.name.lowercase())
         }

@@ -48,7 +48,7 @@ class GeminiClient(
                 val calls = mutableListOf<ToolCall>()
                 var stopReason: String? = null
                 var usage: TokenUsage? = null
-                val source = response.body?.source() ?: throw LlmException("${resolved.provider.name} returned an empty body")
+                val source = response.body.source()
                 source.forEachSseEvent { event ->
                     val json = runCatching { AgentJson.parseToJsonElement(event.data).jsonObject }.getOrNull()
                         ?: return@forEachSseEvent true

@@ -48,7 +48,9 @@ internal fun ToolRegistry.registerBrowseTools() {
             AddonRepository.awaitManifestsLoaded()
             if (args.optBoolean("show_in_app") != false) {
                 val nav = navigation()
-                while (nav.currentRoute !is TabsRoute && nav.back()) Unit
+                while (nav.currentRoute !is TabsRoute) {
+                if (!nav.back()) break
+            }
                 nav.selectTab(AppScreenTab.Search)
                 AgentBridge.requestSearchQuery(query)
             } else {
@@ -68,7 +70,7 @@ internal fun ToolRegistry.registerBrowseTools() {
             if (results.isEmpty() && state.emptyStateReason != null) {
                 return@run okResult(
                     "results" to emptyList<Any>(),
-                    "reason" to state.emptyStateReason?.name,
+                    "reason" to state.emptyStateReason.name,
                     "hint" to "If there are no active addons, install Cinemeta: install_addon(url=\"https://v3-cinemeta.strem.io/manifest.json\")",
                 )
             }
