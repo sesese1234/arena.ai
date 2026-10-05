@@ -1,0 +1,112 @@
+# Final report: in-app AI agent for a Stremio-compatible Android app
+
+_Status as of 2026-10-05. Branches: `claude/streamio-android-agent-ur2z97` (requested) and
+`ccr-09b73190-s7c7p6` (session branch); both hold the same commits._
+
+## 1. Base app
+
+- The **official Stremio Android app** (`com.stremio.one`) is closed source; it was also removed
+  from Google Play in January 2026. Stremio's GitHub only has libraries.
+- Chosen base: **[NuvioMedia/NuvioMobile](https://github.com/NuvioMedia/NuvioMobile)**
+  (`cmp-rewrite`), a phone/tablet Kotlin Multiplatform + Compose app on Google Play as
+  `com.nuvio.app`, GPL-3.0. It is the most complete and most active open phone client (about 2.6k
+  commits with daily pushes; addons, catalogs, search, ExoPlayer + libmpv, subtitles, library,
+  sync, downloads, Trakt/Simkl/MDBList). The comparison with NuvioTV, Lumera, OmniStream,
+  stremio-native and Cove is in the README.
+- Imported with full history; license kept; upstream README preserved in `docs/UPSTREAM_README.md`.
+
+## 2. Phase 1 baseline (before any agent change)
+
+| Check | Result |
+|---|---|
+| `./gradlew :androidApp:assembleFullDebug` | ✅ builds (161 MB universal debug APK), 234 upstream compiler warnings |
+| Unit tests (`:composeApp:testAndroidHostTest`) | 1,515 tests, **6 failing upstream** (see §6) |
+| Lint (`:androidApp:lintFullDebug`) | ✅ 0 errors, 17 warnings |
+| On-device | No KVM in the dev container, so the emulator runs in GitHub Actions (`reactivecircus/android-emulator-runner`, API 34 x86_64, Pixel 6 profile) |
+
+## 3. What was built
+
+See README → *Agent architecture* and [`docs/agent-tools.md`](agent-tools.md) (generated, 74 tools).
+
+- **Tool registry**: one registration per tool with JSON-schema params, validation/coercion,
+  structured JSON results and errors, confirmation gating for destructive/account actions,
+  timeouts and result truncation.
+- **Exhaustiveness**: Nuvio has no ViewModels; screens use singleton repositories. A reflection
+  test over 19 repositories and 3 UI bridges fails if any public action has neither a tool nor a
+  documented exemption (credentials, sync internals, lifecycle, iOS-only, visual editors).
+- **App control**: navigation and every settings page; search, discover and catalogs; title and
+  episode details; the stream list → player; player play/pause/seek/speed/audio/subtitles/subtitle
+  delay/next episode/close; library; progress and watched state; addons
+  (install/remove/enable/reorder/refresh); 60+ settings; profiles and sign-out; downloads;
+  collections; read-only state tools.
+- **Built-ins**: `web_search` (DuckDuckGo/SearXNG keyless; Brave, Tavily, private SearXNG; falls
+  back to Wikipedia), `fetch_url`, direct addon protocol (manifest/catalog/meta/stream/subtitles),
+  calculator, time, memory.
+- **Providers**: models.dev catalog snapshot (226 providers, 8,396 models) plus in-app refresh
+  (models.dev → models.opencode.ai, as opencode does). Clients: OpenAI-compatible (incl. DeepSeek
+  `reasoning_content`), Azure OpenAI, Anthropic, Gemini, Vertex (Gemini + Claude), Bedrock (SigV4 +
+  event stream). Custom endpoints, headers, URL variables, model ids and per-model limits.
+  Keystore-encrypted keys, excluded from backup and device transfer.
+- **Agent loop**: multi-step plan/act/check; parallel read-only calls; retries with backoff;
+  fallback to chat-only when a provider rejects tools; tool errors fed back to the model; context
+  trimming with summary; cancellation; persisted history; streaming UI with collapsible tool
+  cards; floating button on every screen; voice input.
+
+## 4. Verification
+
+### Unit tests (JVM, `com.nuvio.app.agent.*`), all passing
+| Suite | Tests | Covers |
+|---|---|---|
+| ToolRegistryTest | 10 | schema output, validation/coercion, malformed JSON recovery, confirmations, errors, timeout, truncation |
+| AgentToolCatalogTest | 6 | full catalog sanity, confirmation on destructive tools, required capabilities, **coverage gate** |
+| ProviderClientsTest | 14 | recorded DeepSeek streams (tool call + text), Azure routing, Anthropic, Gemini, Bedrock event stream + SigV4 (AWS vector), error classification |
+| AgentSessionTest | 10 | multi-step loop, parallel reads, error recovery, retries, tool rejection fallback, step limit, declined confirmation, cancellation, context trimming |
+| WebAndUtilityTest | 14 | DuckDuckGo (recorded), SearXNG, Brave, Tavily, Wikipedia parsers, HTML→text, fetch limits, calculator, catalog mapping, Keystore store contract, memory |
+| AgentToolDocsTest | 1 | `docs/agent-tools.md` matches the registry |
+| LiveProviderTest | 3 | **real DeepSeek `deepseek-flash`** (skipped without a key) |
+
+Full suite with the agent: **1,580 tests, 5 failures, all of them upstream failures that already
+existed** (§6); the 6th baseline failure (Robolectric download) is fixed by the mirror setting.
+
+### Live provider runs (DeepSeek `deepseek-flash`, real network)
+- *"Who directed The Matrix?"* → `web_search` (DuckDuckGo throttled → model tried other
+  backends → `fetch_url` Wikipedia) → "Lana and Lilly Wachowski" ✅
+- *"Find The Matrix's IMDb id via the Cinemeta addon"* → `addon_catalog` → `tt0133093` ✅
+- *"136 minutes in hours"* → `calculate` → 2.27 ✅
+
+### Release build
+`assembleFullRelease` with R8 minify and resource shrinking ✅ (≈45 MB per ABI). The mapping keeps
+the agent's kotlinx-serialization serializers. The release APK installs and launches on the
+emulator.
+
+### On-device (GitHub Actions emulator)
+_Pending: filled in from the latest CI run (baseline flows + agent tasks, debug and release)._
+
+## 5. Known limitations
+- No KVM in the development container: all on-device evidence comes from CI emulators (artifacts
+  are kept 14 days).
+- `DEEPSEEK_API_KEY` must be added as an Actions secret by the repo owner (automated secret
+  writes were blocked); until then the emulator agent tasks use the scripted mock provider and
+  the live JVM tests are skipped in CI.
+- Nuvio's own backend (Supabase), Trakt, TMDB and similar keys aren't configured in this fork's
+  builds, so tests use guest mode.
+- Public web search without keys is best-effort: DuckDuckGo throttles bursts (handled by the
+  fallbacks) and public SearXNG instances often disable JSON.
+- Vertex AI and Bedrock clients are tested against recorded or synthetic responses and the AWS
+  SigV4 vector, not against live accounts (no credentials available).
+- Subtitle rendering can't be read through uiautomator; on-device subtitle checks rely on the
+  tool result, the player state and screenshots/video.
+- The iOS target (upstream KMP) isn't built here (no macOS); the shared bridge code is pure
+  Kotlin, and the agent itself lives in `androidMain`.
+
+## 6. Flows broken upstream before this work
+- Unit tests: `CustomPosterUrlResolverTest.resolve_pattern_without_any_placeholders_returns_as_is`,
+  `RatingsVisibilityTest.allEpisodeLayoutsRespectVisibilityForFetchedAndAddonRatings`,
+  `PlayerAutoPlayTest` (2 cases), `WatchProgressIdentityTest` (legacy payload). `RootTabHostTest`
+  failed only because Robolectric couldn't download `android-all` (rate-limited); fixed via
+  `ROBOLECTRIC_REPO`.
+- Lint: 17 upstream warnings, including an empty `checkServerTrusted` (trust-all TLS manager) in
+  upstream code, worth reviewing upstream.
+- Build: upstream's daemon sizes (12 GB + 8 GB) exceed hosted runners; reduced in CI.
+- Upstream issue/PR automation workflows would act on this repository; removed.
+- _On-device baseline: pending (see §4)._
