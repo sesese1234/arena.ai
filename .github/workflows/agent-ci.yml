@@ -2,7 +2,7 @@ name: Agent CI
 
 on:
   push:
-    branches: ["ccr-*", "claude/**", "main"]
+    branches: ["claude/**"]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -16,7 +16,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx6g -Dkotlin.daemon.jvmargs=-Xmx4g
   ROBOLECTRIC_REPO: https://maven-central.storage-download.googleapis.com/maven2
 
 jobs:
@@ -35,13 +34,25 @@ jobs:
         run: |
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/node_modules /usr/local/share/boost || true
           df -h /
+      - name: Gradle memory limits for hosted runners
+        run: |
+          # Upstream gradle.properties asks for 12 GB + 8 GB daemons; hosted runners have 16 GB.
+          mkdir -p ~/.gradle
+          cat > ~/.gradle/gradle.properties <<'PROPS'
+          org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1536m -Dfile.encoding=UTF-8
+          kotlin.daemon.jvmargs=-Xmx3g
+          kotlin.compiler.execution.strategy=in-process
+          org.gradle.workers.max=3
+          PROPS
       - name: Install Android SDK packages
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" > /dev/null
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-      - name: Assemble debug + release (R8)
-        run: ./gradlew :androidApp:assembleFullDebug :androidApp:assembleFullRelease --stacktrace
+      - name: Assemble debug APK
+        run: ./gradlew :androidApp:assembleFullDebug --stacktrace
+      - name: Assemble release APK (R8 minify + resource shrinking)
+        run: ./gradlew :androidApp:assembleFullRelease --stacktrace
       - name: Agent unit tests
         run: |
           if [ -d composeApp/src/androidHostTest/kotlin/com/nuvio/app/agent ]; then
