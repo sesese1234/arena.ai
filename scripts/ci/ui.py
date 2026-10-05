@@ -72,7 +72,7 @@ def dismiss_system_dialogs(nodes=None):
     nodes = nodes if nodes is not None else dump()
     if not any("isn't responding" in n.label or "keeps stopping" in n.label for n in nodes):
         return False
-    button = next((n for n in nodes if n.label in ("Wait", "Close app", "Close")), None)
+    button = next((n for n in nodes if n.label == "Wait"), None) or next((n for n in nodes if n.label in ("Close app", "Close")), None)
     if button is None:
         return False
     print(f"  [system dialog] dismissing with '{button.label}'", flush=True)
@@ -174,9 +174,16 @@ def back():
     key(4)
 
 
+_IME_SHOWN = re.compile(r"mInputShown=true|isInputViewShown=true|mIsInputViewShown=true|mImeShowing=true|imeVisible=true")
+
+
 def keyboard_shown():
-    out = sh("shell", "dumpsys", "input_method")
-    return "mInputShown=true" in out or "isInputViewShown=true" in out
+    """Best effort across API levels; CI also gives the AVD a hardware keyboard so the soft one stays hidden."""
+    if _IME_SHOWN.search(sh("shell", "dumpsys", "input_method")):
+        return True
+    windows = sh("shell", "dumpsys", "window", "InputMethod")
+    # A hidden IME window keeps existing but reports mViewVisibility=0x8 and no surface.
+    return "mViewVisibility=0x0" in windows and "mHasSurface=true" in windows
 
 
 def hide_keyboard():
@@ -214,6 +221,7 @@ def ensure_app():
     for _ in range(3):
         if not dismiss_system_dialogs():
             break
+    hide_keyboard()
     if not app_in_foreground():
         print(f"  [ensure_app] {PACKAGE} not in foreground ({current_focus()}); relaunching", flush=True)
         launch()

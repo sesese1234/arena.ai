@@ -50,6 +50,7 @@ def clear_focused(chars=80):
 def open_chat():
     if find_id("agent_input", timeout=2):
         return
+    ui.hide_keyboard()  # the soft keyboard would cover the floating button
     tap_id("agent_fab", timeout=15)
     find_id("agent_input", timeout=10) or tap_id("agent_fab")
 
@@ -159,9 +160,7 @@ def screen_labels(name):
 def task_install_addon():
     tools, reply, _ = ask("Install the OpenSubtitles addon", "install_addon")
     assert "install_addon" in tools, tools
-    base.go_home()
-    base.open_settings_tab()
-    ui.tap_text(r"^Addons$", timeout=10)
+    base.open_addons()
     ui.wait_for(r"OpenSubtitles", timeout=15)
     ui.screenshot("agent_install_addon_verified")
     ui.back()

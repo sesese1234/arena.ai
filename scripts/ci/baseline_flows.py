@@ -23,7 +23,25 @@ def open_settings_tab():
     ui.tap(tab)
 
 
+def open_addons():
+    """Settings → Content & Discovery → Addons (Nuvio nests the addon manager one level down)."""
+    go_home()
+    open_settings_tab()
+    if ui.find(r"^Addons$", timeout=3) is None:
+        for _ in range(3):
+            entry = ui.find(r"^Content & Discovery$", timeout=4)
+            if entry:
+                ui.tap(entry)
+                break
+            ui.swipe_up()
+        else:
+            raise AssertionError(f"no 'Content & Discovery' settings entry; visible {ui.visible_labels()}")
+    ui.tap_text(r"^Addons$", timeout=15)
+    time.sleep(2)
+
+
 def go_home():
+    ui.hide_keyboard()
     for _ in range(4):
         tab = ui.find(r"^Home$", timeout=3)
         if tab:
@@ -89,9 +107,7 @@ def onboarding():
 
 def install_addon(url, expect_name):
     def run():
-        go_home()
-        open_settings_tab()
-        ui.tap_text(r"^Addons$", timeout=15)
+        open_addons()
         ui.screenshot(f"addons_before_{expect_name.split()[0].lower()}")
         field = ui.find(r"(manifest|addon url|https://|Paste)", timeout=10)
         if field is None:
@@ -247,10 +263,7 @@ def settings_flow():
 
 
 def remove_addon():
-    go_home()
-    open_settings_tab()
-    ui.tap_text(r"^Addons$", timeout=10)
-    time.sleep(2)
+    open_addons()
     for _ in range(4):
         target = ui.find(r"OpenSubtitles", timeout=5)
         deletes = [n for n in ui.dump() if n.desc == "Delete addon"]
