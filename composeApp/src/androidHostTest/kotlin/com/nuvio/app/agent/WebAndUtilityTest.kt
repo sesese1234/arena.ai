@@ -41,6 +41,15 @@ class WebAndUtilityTest {
     }
 
     @Test
+    fun parsesRecordedWikipediaSearchFallback() {
+        val results = WebSearch.parseWikipediaSearch(fixture("wikipedia_search.json"))
+        assertTrue(results.isNotEmpty())
+        assertTrue(results.all { it.url.startsWith("https://en.wikipedia.org/wiki/") })
+        assertTrue(results.any { it.title.contains("Matrix") })
+        assertFalse(results.first().snippet.contains("<span"))
+    }
+
+    @Test
     fun parsesClassicDuckDuckGoHtmlAndUnwrapsRedirects() {
         val html = """
             <div class="result"><a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.imdb.com%2Ftitle%2Ftt0133093%2F&amp;rut=x">The <b>Matrix</b> (1999) - IMDb</a>

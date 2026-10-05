@@ -50,6 +50,7 @@ internal fun ToolRegistry.registerWebTools(search: WebSearch, fetcher: UrlFetche
             val response = search.search(args.string("query"), args.optInt("max_results") ?: 6, backend)
             okResult(
                 "backend" to response.backend.name.lowercase(),
+                "fallback" to response.fallback,
                 "answer" to response.answer,
                 "results" to response.results.map { mapOf("title" to it.title, "url" to it.url, "snippet" to it.snippet.take(300)) },
             )

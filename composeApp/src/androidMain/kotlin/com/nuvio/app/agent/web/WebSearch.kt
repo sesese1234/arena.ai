@@ -23,7 +23,13 @@ import java.net.URLDecoder
 
 data class SearchResult(val title: String, val url: String, val snippet: String)
 
-data class SearchResponse(val backend: SearchBackend, val results: List<SearchResult>, val answer: String? = null)
+data class SearchResponse(
+    val backend: SearchBackend,
+    val results: List<SearchResult>,
+    val answer: String? = null,
+    /** Set when the chosen backend failed and another source answered. */
+    val fallback: String? = null,
+)
 
 /**
  * Pluggable web search. DuckDuckGo (Lite HTML endpoint) and public SearXNG need no key; Brave,
@@ -43,7 +49,7 @@ class WebSearch(
                 runBackend(backend, query, maxResults, config)
             } catch (error: Exception) {
                 if (backend != SearchBackend.DuckDuckGo && config.fallbackToDuckDuckGo && backendOverride == null) {
-                    runBackend(SearchBackend.DuckDuckGo, query, maxResults, config)
+                    duckDuckGo(query, maxResults).copy(fallback = "duckduckgo (${backend.label} failed: ${error.message?.take(80)})")
                 } else {
                     throw ToolFailure("${backend.label} search failed: ${error.message}", "search_failed")
                 }
@@ -51,14 +57,7 @@ class WebSearch(
         }
 
     private fun runBackend(backend: SearchBackend, query: String, max: Int, config: SearchSettings): SearchResponse = when (backend) {
-        SearchBackend.DuckDuckGo -> {
-            val request = Request.Builder()
-                .url("https://lite.duckduckgo.com/lite/")
-                .header("User-Agent", BROWSER_UA)
-                .post(FormBody.Builder().add("q", query).add("kl", "wt-wt").build())
-                .build()
-            SearchResponse(backend, parseDuckDuckGoLite(execute(request)).take(max))
-        }
+        SearchBackend.DuckDuckGo -> duckDuckGo(query, max)
         SearchBackend.SearxngPublic, SearchBackend.Searxng -> {
             val base = (if (backend == SearchBackend.Searxng) config.searxngUrl else config.publicSearxngUrl)
                 .trim().trimEnd('/').ifEmpty { throw ToolFailure("Set a SearXNG URL in Agent settings → Web search", "not_configured") }
@@ -103,6 +102,50 @@ class WebSearch(
         }
     }
 
+    /**
+     * DuckDuckGo Lite, then the classic HTML endpoint. DuckDuckGo throttles bursts by answering
+     * HTTP 202 with an empty challenge page; in that case fall back to Wikipedia's keyless search
+     * API so the agent still gets grounded results.
+     */
+    private fun duckDuckGo(query: String, max: Int): SearchResponse {
+        val lite = runCatching {
+            val request = Request.Builder()
+                .url("https://lite.duckduckgo.com/lite/")
+                .header("User-Agent", BROWSER_UA)
+                .post(FormBody.Builder().add("q", query).add("kl", "wt-wt").build())
+                .build()
+            parseDuckDuckGoLite(execute(request, rejectAccepted = true))
+        }.getOrDefault(emptyList())
+        if (lite.isNotEmpty()) return SearchResponse(SearchBackend.DuckDuckGo, lite.take(max))
+        val html = runCatching {
+            val url = "https://html.duckduckgo.com/html/".toHttpUrl().newBuilder().addQueryParameter("q", query).build()
+            parseDuckDuckGoHtml(execute(Request.Builder().url(url).header("User-Agent", BROWSER_UA).build(), rejectAccepted = true))
+        }.getOrDefault(emptyList())
+        if (html.isNotEmpty()) return SearchResponse(SearchBackend.DuckDuckGo, html.take(max))
+        val wiki = wikipedia(query, max)
+        return SearchResponse(SearchBackend.DuckDuckGo, wiki, answer = null, fallback = "wikipedia (DuckDuckGo returned no results or rate-limited)")
+    }
+
+    private fun wikipedia(query: String, max: Int): List<SearchResult> {
+        val url = "https://en.wikipedia.org/w/api.php".toHttpUrl().newBuilder()
+            .addQueryParameter("action", "query")
+            .addQueryParameter("list", "search")
+            .addQueryParameter("srsearch", query)
+            .addQueryParameter("srlimit", max.coerceIn(1, 20).toString())
+            .addQueryParameter("format", "json")
+            .build()
+        val body = execute(Request.Builder().url(url).header("User-Agent", "NuvioAgent/1.0 (https://github.com/sesese1234/arena.ai; in-app assistant)").build())
+        return parseWikipediaSearch(body)
+    }
+
+    private fun execute(request: Request, rejectAccepted: Boolean): String =
+        http.newCall(request).execute().use { response ->
+            if (rejectAccepted && response.code == 202) throw ToolFailure("rate limited (HTTP 202)", "rate_limited")
+            val body = response.body?.string().orEmpty()
+            if (!response.isSuccessful) throw ToolFailure("HTTP ${response.code}: ${body.take(200)}", "http_${response.code}")
+            body
+        }
+
     private fun execute(request: Request): String =
         http.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
@@ -145,6 +188,20 @@ class WebSearch(
             val url = if (raw.startsWith("//")) "https:$raw" else raw
             val uddg = Regex("[?&]uddg=([^&]+)").find(url)?.groupValues?.get(1) ?: return url
             return URLDecoder.decode(uddg, "UTF-8")
+        }
+
+        fun parseWikipediaSearch(body: String): List<SearchResult> {
+            val json = AgentJson.parseToJsonElement(body).jsonObject
+            val hits = json["query"]?.jsonObject?.get("search") as? JsonArray
+            return hits.orEmpty().mapNotNull { element ->
+                val item = element as? JsonObject ?: return@mapNotNull null
+                val title = item.text("title").ifEmpty { return@mapNotNull null }
+                SearchResult(
+                    title = title,
+                    url = "https://en.wikipedia.org/wiki/" + java.net.URLEncoder.encode(title.replace(' ', '_'), "UTF-8").replace("%2F", "/"),
+                    snippet = HtmlText.inlineText(item.text("snippet")),
+                )
+            }
         }
 
         fun parseSearxngJson(body: String): List<SearchResult> {
