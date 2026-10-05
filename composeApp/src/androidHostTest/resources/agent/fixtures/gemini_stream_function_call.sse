@@ -1,0 +1,6 @@
+data: {"candidates":[{"content":{"parts":[{"text":"Let me look that up","thought":true}],"role":"model"},"index":0}],"usageMetadata":{"promptTokenCount":380,"candidatesTokenCount":4}}
+
+data: {"candidates":[{"content":{"parts":[{"text":"I'll search for it. "}],"role":"model"},"index":0}]}
+
+data: {"candidates":[{"content":{"parts":[{"functionCall":{"name":"search_titles","args":{"query":"The Matrix","type":"movie"}},"thoughtSignature":"gem-sig-1"}],"role":"model"},"finishReason":"STOP","index":0}],"usageMetadata":{"promptTokenCount":380,"candidatesTokenCount":21}}
+
