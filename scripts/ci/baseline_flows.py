@@ -7,6 +7,7 @@ so one broken flow doesn't hide the others. Usage:
     FLOW_OUT=out python3 scripts/ci/baseline_flows.py --addon-host 10.0.2.2:7000
 """
 import argparse
+import re
 import sys
 import time
 
@@ -119,9 +120,12 @@ def install_addon(url, expect_name):
         ui.type_text(url)
         ui.key(66)  # enter
         ui.hide_keyboard()
-        install = ui.find(r"^(Install|Install Addon|Add)$", timeout=5)
-        if install:
-            ui.tap(install)
+        # The button says "Install Addon" (or "Add Addon", which is also the section header), so
+        # take the lowest match on screen.
+        ui.find(r"^(Install Addon|Add Addon|Install)$", timeout=5)
+        buttons = [n for n in ui.dump() if re.match(r"^(Install Addon|Add Addon|Install)$", n.label) and (not n.pkg or n.pkg == ui.PACKAGE)]
+        if buttons:
+            ui.tap(max(buttons, key=lambda n: n.bounds[1]))
         done = ui.find(r"^(Done|Close)$", timeout=40)
         ui.screenshot(f"addons_modal_{expect_name.split()[0].lower()}")
         modal_text = " ".join(ui.visible_labels())
