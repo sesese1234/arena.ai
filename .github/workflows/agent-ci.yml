@@ -53,7 +53,9 @@ jobs:
         run: ./gradlew :androidApp:assembleFullDebug --stacktrace
       - name: Assemble release APK (R8 minify + resource shrinking)
         run: ./gradlew :androidApp:assembleFullRelease --stacktrace
-      - name: Agent unit tests
+      - name: Agent unit tests (live DeepSeek tests run when the secret is set)
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
           if [ -d composeApp/src/androidHostTest/kotlin/com/nuvio/app/agent ]; then
             ./gradlew :composeApp:testAndroidHostTest --tests 'com.nuvio.app.agent.*'
@@ -113,6 +115,10 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
           nohup python3 scripts/test-addon/server.py --port 7000 --public-host 10.0.2.2 > test-addon.log 2>&1 &
           for i in $(seq 1 90); do curl -sf localhost:7000/manifest.json && break; sleep 1; done
+      - name: Start scripted mock LLM server
+        run: |
+          nohup python3 scripts/mock-llm/server.py --port 8090 > mock-llm.log 2>&1 &
+          sleep 2 && curl -sf localhost:8090/v1/models
       - name: Pick APK
         id: apk
         run: |
@@ -129,6 +135,8 @@ jobs:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           APP_PACKAGE: ${{ steps.apk.outputs.package }}
           FLOW_OUT: flow-artifacts
+          # Debug runs the deterministic mock provider; release runs DeepSeek when the secret exists.
+          AGENT_PROVIDER: ${{ matrix.variant == 'release' && secrets.DEEPSEEK_API_KEY != '' && 'deepseek' || 'mock' }}
         with:
           api-level: 34
           arch: x86_64
@@ -145,4 +153,5 @@ jobs:
           path: |
             flow-artifacts
             test-addon.log
+            mock-llm.log
           retention-days: 14

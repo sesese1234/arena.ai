@@ -159,11 +159,21 @@ def continue_watching():
 
 def library_flow():
     ui.tap_text(r"^Search$", timeout=10)
-    time.sleep(2)
+    field = ui.find(r"Search movies", timeout=5)
+    if field is None:
+        clear = ui.find(r"Clear search", timeout=3)
+        if clear:
+            ui.tap(clear)
+        field = ui.find(r"Search movies", timeout=5)
+    if field:
+        ui.tap(field)
+    ui.type_text("Inception")
+    ui.key(66)
+    ui.wait_for(r"Inception", timeout=40)
     nodes = ui.dump()
-    target = next((n for n in nodes if "The Matrix" in n.label and n.bounds[1] > 300), None)
+    target = next((n for n in nodes if "Inception" in n.label and n.bounds[1] > 300 and not n.focused), None)
     if target is None:
-        raise AssertionError("search result gone")
+        raise AssertionError("no Inception result")
     ui.tap(target)
     time.sleep(4)
     save = ui.find(r"(Add to Library|Library|Save|Bookmark)", timeout=8)
@@ -175,9 +185,9 @@ def library_flow():
     go_home()
     ui.tap_text(r"^Library$", timeout=10)
     time.sleep(3)
-    ui.wait_for(r"Matrix", timeout=15)
+    ui.wait_for(r"Inception", timeout=15)
     ui.screenshot("51_library")
-    return "Matrix in library"
+    return "Inception in library"
 
 
 def settings_flow():

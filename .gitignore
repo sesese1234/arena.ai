@@ -35,6 +35,7 @@ scripts/*
 !scripts/sign-ios-device-app.py
 !scripts/ci/
 !scripts/test-addon/
+!scripts/mock-llm/
 !scripts/update-models-catalog.py
 iosApp/Configuration/DeviceSigning.local.json
 

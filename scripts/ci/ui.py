@@ -129,6 +129,16 @@ def back():
     key(4)
 
 
+def keyboard_shown():
+    out = sh("shell", "dumpsys", "input_method")
+    return "mInputShown=true" in out or "isInputViewShown=true" in out
+
+
+def hide_keyboard():
+    if keyboard_shown():
+        key(4)
+
+
 def swipe_up():
     size = sh("shell", "wm", "size")
     m = re.search(r"(\d+)x(\d+)", size)

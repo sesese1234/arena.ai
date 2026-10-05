@@ -1,0 +1,240 @@
+#!/usr/bin/env python3
+"""End-to-end agent tasks on a real emulator, driven only through the UI.
+
+1. Configures a provider through the assistant settings screen: DeepSeek (deepseek-flash) when
+   DEEPSEEK_API_KEY is set, otherwise the scripted mock OpenAI-compatible server on the host.
+2. Sends each task through the chat input, waits for the agent to finish, records the chat
+   (tool calls + reply), then closes the panel and checks the app state it should have changed.
+
+Evidence goes to $FLOW_OUT (agent_*.png / .xml) and the markdown summary.
+"""
+import argparse
+import os
+import re
+import time
+
+import ui
+import baseline_flows as base
+
+AGENT_PROVIDER = os.environ.get("AGENT_PROVIDER") or ("deepseek" if os.environ.get("DEEPSEEK_API_KEY") else "mock")
+
+
+def rid(name):
+    return f"^{name}$"
+
+
+def find_id(tag, timeout=10):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        for node in ui.dump():
+            if node.rid == tag or node.rid.endswith(":id/" + tag):
+                return node
+        time.sleep(0.7)
+    return None
+
+
+def tap_id(tag, timeout=10):
+    node = find_id(tag, timeout)
+    if node is None:
+        raise AssertionError(f"no element with test tag '{tag}'; visible {ui.visible_labels()[:25]}")
+    ui.tap(node)
+    return node
+
+
+def clear_focused(chars=80):
+    ui.key(123)  # MOVE_END
+    for _ in range(chars // 20):
+        ui.sh("shell", "input", "keyevent", *(["67"] * 20))
+
+
+def open_chat():
+    if find_id("agent_input", timeout=2):
+        return
+    tap_id("agent_fab", timeout=15)
+    find_id("agent_input", timeout=10) or tap_id("agent_fab")
+
+
+def close_chat():
+    node = find_id("agent_close", timeout=3)
+    if node:
+        ui.tap(node)
+        time.sleep(1)
+
+
+def configure_provider():
+    open_chat()
+    tap_id("agent_settings")
+    time.sleep(1)
+    ui.screenshot("agent_00_settings")
+    if AGENT_PROVIDER == "deepseek":
+        tap_id("agent_add_provider")
+        tap_id("agent_catalog_search")
+        ui.type_text("DeepSeek")
+        time.sleep(1)
+        tap_id("agent_catalog_deepseek")
+        time.sleep(1)
+        tap_id("agent_secret_apiKey")
+        ui.sh("shell", "input", "text", os.environ["DEEPSEEK_API_KEY"])
+        ui.hide_keyboard()
+        ui.screenshot("agent_01_provider_editor")
+        tap_id("agent_provider_save")
+        time.sleep(1)
+        tap_id("agent_model_deepseek_deepseek-flash", timeout=10)
+    else:
+        ui.tap_text(r"^Custom endpoint$", timeout=10)
+        time.sleep(1)
+        tap_id("agent_provider_base_url")
+        clear_focused(60)
+        ui.type_text("http://10.0.2.2:8090/v1")
+        tap_id("agent_secret_apiKey")
+        ui.type_text("mock-key")
+        tap_id("agent_new_model")
+        ui.type_text("mock-agent")
+        ui.tap(ui.wait_for(r"^Add model$", timeout=5))
+        ui.hide_keyboard()
+        ui.screenshot("agent_01_provider_editor")
+        tap_id("agent_provider_save")
+        time.sleep(1)
+    nodes = ui.screenshot("agent_02_provider_saved")
+    labels = " ".join(ui.visible_labels(nodes))
+    if "credentials set" not in labels:
+        raise AssertionError(f"provider not configured: {labels[:400]}")
+    ui.tap(ui.wait_for(r"^Back$", timeout=5))
+    time.sleep(1)
+    return f"{AGENT_PROVIDER} configured"
+
+
+def chat_transcript():
+    nodes = ui.dump()
+    tools = [n.desc.replace("Tool ", "") for n in nodes if n.desc.startswith("Tool ")]
+    replies = [n.desc.replace("Assistant: ", "") for n in nodes if n.desc.startswith("Assistant: ")]
+    errors = [n.text for n in nodes if n.rid.endswith("agent_error")]
+    return tools, replies, errors
+
+
+def ask(prompt, name, timeout=240, approve=None):
+    open_chat()
+    tap_id("agent_input")
+    ui.type_text(prompt)
+    tap_id("agent_send")
+    deadline = time.time() + timeout
+    confirmed = False
+    seen_tools = []
+    while time.time() < deadline:
+        time.sleep(2)
+        if approve is not None and find_id("agent_confirm_ok", timeout=0.5):
+            ui.screenshot(f"agent_{name}_confirmation")
+            tap_id("agent_confirm_ok" if approve else "agent_confirm_cancel")
+            confirmed = True
+            continue
+        tools, _, _ = chat_transcript()
+        seen_tools = sorted(set(seen_tools) | set(tools))
+        if find_id("agent_send", timeout=0.5) and not find_id("agent_stop", timeout=0.5):
+            break
+    else:
+        raise AssertionError(f"agent did not finish within {timeout}s")
+    ui.screenshot(f"agent_{name}_chat")
+    tools, replies, errors = chat_transcript()
+    reply = replies[-1] if replies else ""
+    print(f"  tools={sorted(set(seen_tools) | set(tools))} reply={reply[:200]!r} errors={errors}", flush=True)
+    if errors:
+        raise AssertionError(f"agent error: {errors[-1]}")
+    return sorted(set(seen_tools) | set(tools)), reply, confirmed
+
+
+def screen_labels(name):
+    close_chat()
+    time.sleep(2)
+    return " ".join(ui.visible_labels(ui.screenshot(f"agent_{name}_app"), 80))
+
+
+def task_install_addon():
+    tools, reply, _ = ask("Install the OpenSubtitles addon", "install_addon")
+    assert "install_addon" in tools, tools
+    base.go_home()
+    base.open_settings_tab()
+    ui.tap_text(r"^Addons$", timeout=10)
+    ui.wait_for(r"OpenSubtitles", timeout=15)
+    ui.screenshot("agent_install_addon_verified")
+    ui.back()
+    base.go_home()
+    return reply
+
+
+def task_find_matrix():
+    tools, reply, _ = ask("Find The Matrix and open its details", "find_matrix")
+    assert "open_title" in tools, tools
+    labels = screen_labels("find_matrix")
+    assert "Matrix" in labels, labels[:300]
+    return reply
+
+
+def task_add_to_library():
+    tools, reply, _ = ask("Add this to my library", "add_library")
+    assert "add_to_library" in tools, tools
+    base.go_home()
+    ui.tap_text(r"^Library$", timeout=10)
+    time.sleep(3)
+    ui.wait_for(r"Matrix", timeout=15)
+    ui.screenshot("agent_add_library_verified")
+    base.go_home()
+    return reply
+
+
+def task_play_with_subtitles():
+    # Re-open The Matrix so "the first stream" refers to it.
+    ask("Open The Matrix (1999) details", "reopen_matrix", timeout=180)
+    tools, reply, _ = ask("Play the first stream and turn on English subtitles", "play_subs", timeout=300)
+    assert "play_stream" in tools and "player_select_subtitles" in tools, tools
+    close_chat()
+    time.sleep(3)
+    ui.screenshot("agent_play_subs_player")
+    log = ui.sh("logcat", "-d", "-t", "2000")
+    assert re.search(r"ExoPlayerImpl|mpv|MediaCodec", log, re.IGNORECASE), "no player activity in logcat"
+    return reply
+
+
+def task_web_then_open():
+    tools, reply, _ = ask("Search the web for who directed The Matrix, then open their other movie", "web_open", timeout=300)
+    assert "web_search" in tools and "open_title" in tools, tools
+    labels = screen_labels("web_open")
+    return f"{reply[:150]} | screen: {labels[:120]}"
+
+
+def task_continue_watching():
+    tools, reply, _ = ask("What's on my continue-watching list?", "continue_watching")
+    assert "get_continue_watching" in tools, tools
+    assert "Matrix" in reply, reply
+    return reply
+
+
+def task_destructive_confirmation():
+    tools, reply, confirmed = ask("Remove the OpenSubtitles addon", "remove_addon", approve=True)
+    assert confirmed, "expected a confirmation dialog before removing the addon"
+    assert "remove_addon" in tools, tools
+    return reply
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--addon-host", default="10.0.2.2:7000")
+    parser.add_argument("--title", default="Agent tasks")
+    args = parser.parse_args()
+    flow = ui.Flow(f"{args.title} — provider: {AGENT_PROVIDER}")
+    if not flow.step("Configure provider in assistant settings", configure_provider):
+        flow.report()
+        return
+    flow.step("Agent: install the OpenSubtitles addon", task_install_addon)
+    flow.step("Agent: find The Matrix and open its details", task_find_matrix)
+    flow.step("Agent: add this to my library", task_add_to_library)
+    flow.step("Agent: play first stream + English subtitles", task_play_with_subtitles)
+    flow.step("Agent: web search director, open their other movie", task_web_then_open)
+    flow.step("Agent: what's on my continue-watching list", task_continue_watching)
+    flow.step("Agent: destructive action asks for confirmation", task_destructive_confirmation)
+    with open(f"{ui.OUT}/agent-logcat.txt", "w") as fh:
+        fh.write(ui.sh("logcat", "-d", timeout=120))
+    flow.report()
+
+
+if __name__ == "__main__":
+    main()
