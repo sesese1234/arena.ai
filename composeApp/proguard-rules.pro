@@ -62,3 +62,18 @@
 -dontwarn org.conscrypt.**
 -dontwarn org.bouncycastle.**
 -dontwarn org.openjsse.**
+
+# In-app assistant: persisted settings/conversations are kotlinx.serialization classes (sealed
+# ChatMessage is polymorphic, so keep subclass serializers and names stable across builds).
+-keep,includedescriptorclasses class com.nuvio.app.agent.**$$serializer { *; }
+-keepclassmembers class com.nuvio.app.agent.** {
+    *** Companion;
+    kotlinx.serialization.KSerializer serializer(...);
+}
+-keep class com.nuvio.app.agent.llm.ChatMessage { *; }
+-keep class com.nuvio.app.agent.llm.ChatMessage$* { *; }
+-keepnames class com.nuvio.app.agent.config.** { *; }
+-keepnames class com.nuvio.app.agent.llm.ApiKind
+-keepnames class com.nuvio.app.agent.config.SearchBackend
+# Android Keystore + JCA providers used by the secret store and Google service-account signing.
+-keep class android.security.keystore.** { *; }

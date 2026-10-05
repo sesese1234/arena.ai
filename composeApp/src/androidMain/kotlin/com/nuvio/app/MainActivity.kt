@@ -4,6 +4,11 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
+import com.nuvio.app.agent.AgentController
+import com.nuvio.app.agent.ui.AgentOverlay
 
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.SystemBarStyle
@@ -145,9 +150,13 @@ open class MainActivity : AppCompatActivity() {
         EpisodeReleaseNotificationPlatform.initialize(applicationContext)
         EpisodeReleaseNotificationPlatform.bindActivity(this)
         handleIncomingAppIntent(intent)
+        AgentController.initialize(applicationContext)
 
         setContent {
-            App()
+            Box(Modifier.fillMaxSize()) {
+                App()
+                AgentOverlay()
+            }
         }
     }
 
