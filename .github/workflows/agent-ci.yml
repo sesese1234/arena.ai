@@ -96,18 +96,16 @@ jobs:
           retention-days: 14
 
   emulator:
-    name: Emulator (${{ matrix.variant }})
+    # One job runs both variants on the same emulator: a second concurrent emulator job sat
+    # queued for a runner and was cancelled after 15 minutes in every earlier run.
+    name: Emulator (debug + release)
     needs: build
     if: ${{ always() && (needs.build.result == 'success' || inputs.apk_run_id) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 150
     permissions:
       actions: read
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        variant: [debug, release]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -130,24 +128,17 @@ jobs:
         run: |
           nohup python3 scripts/mock-llm/server.py --port 8090 > mock-llm.log 2>&1 &
           sleep 2 && curl -sf localhost:8090/v1/models
-      - name: Pick APK
+      - name: Pick APKs
         id: apk
         run: |
-          if [ "${{ matrix.variant }}" = "debug" ]; then
-            echo "path=$(ls apks/*full-debug*.apk | head -1)" >> "$GITHUB_OUTPUT"
-            echo "package=com.nuviodebug.com" >> "$GITHUB_OUTPUT"
-          else
-            echo "path=$(ls apks/*x86_64*release*.apk apks/*release*x86_64*.apk 2>/dev/null | head -1)" >> "$GITHUB_OUTPUT"
-            echo "package=com.nuvio.app" >> "$GITHUB_OUTPUT"
-          fi
+          echo "debug=$(ls apks/*full-debug*.apk | head -1)" >> "$GITHUB_OUTPUT"
+          echo "release=$(ls apks/*x86_64*release*.apk apks/*release*x86_64*.apk 2>/dev/null | head -1)" >> "$GITHUB_OUTPUT"
       - name: Run flows on emulator
         uses: reactivecircus/android-emulator-runner@v2
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          APP_PACKAGE: ${{ steps.apk.outputs.package }}
-          FLOW_OUT: flow-artifacts
           # Debug runs the deterministic mock provider; release runs DeepSeek when the secret exists.
-          AGENT_PROVIDER: ${{ matrix.variant == 'release' && secrets.DEEPSEEK_API_KEY != '' && 'deepseek' || 'mock' }}
+          RELEASE_AGENT_PROVIDER: ${{ secrets.DEEPSEEK_API_KEY != '' && 'deepseek' || 'mock' }}
         with:
           api-level: 34
           arch: x86_64
@@ -157,11 +148,13 @@ jobs:
           disk-size: 6000M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: bash scripts/ci/run-emulator-flows.sh "${{ steps.apk.outputs.path }}" "${{ matrix.variant }}"
+          script: |
+            bash scripts/ci/run-emulator-flows.sh "${{ steps.apk.outputs.debug }}" debug
+            bash scripts/ci/run-emulator-flows.sh "${{ steps.apk.outputs.release }}" release
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: emulator-evidence-${{ matrix.variant }}
+          name: emulator-evidence
           path: |
             flow-artifacts
             test-addon.log

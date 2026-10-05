@@ -66,6 +66,21 @@ def dump(name=None):
     return [Node(el) for el in root.iter("node")]
 
 
+def dismiss_system_dialogs(nodes=None):
+    """Taps 'Wait' on system ANR dialogs ("Pixel Launcher isn't responding") that slow emulators
+    show over the app. Returns True if one was dismissed."""
+    nodes = nodes if nodes is not None else dump()
+    if not any("isn't responding" in n.label or "keeps stopping" in n.label for n in nodes):
+        return False
+    button = next((n for n in nodes if n.label in ("Wait", "Close app", "Close")), None)
+    if button is None:
+        return False
+    print(f"  [system dialog] dismissing with '{button.label}'", flush=True)
+    sh("shell", "input", "tap", *map(str, button.center))
+    time.sleep(1.5)
+    return True
+
+
 def visible_labels(nodes=None, limit=60):
     nodes = nodes if nodes is not None else dump()
     nodes = [n for n in nodes if not n.pkg or n.pkg == PACKAGE] or nodes
@@ -114,7 +129,10 @@ def find(pattern, timeout=20, exact=False, clickable_only=False):
     regex = re.compile(pattern if not exact else f"^{re.escape(pattern)}$", re.IGNORECASE)
     deadline = time.time() + timeout
     while time.time() < deadline:
-        nodes = [n for n in dump() if not n.pkg or n.pkg == PACKAGE]
+        all_nodes = dump()
+        if dismiss_system_dialogs(all_nodes):
+            continue
+        nodes = [n for n in all_nodes if not n.pkg or n.pkg == PACKAGE]
         matches = [n for n in nodes if (regex.search(n.text) or regex.search(n.desc)) and (n.clickable or not clickable_only)]
         if matches:
             return matches[0]
@@ -193,6 +211,9 @@ def app_in_foreground():
 
 def ensure_app():
     """Relaunches the app if a previous step left another app (launcher, browser) on top."""
+    for _ in range(3):
+        if not dismiss_system_dialogs():
+            break
     if not app_in_foreground():
         print(f"  [ensure_app] {PACKAGE} not in foreground ({current_focus()}); relaunching", flush=True)
         launch()

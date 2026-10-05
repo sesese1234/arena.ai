@@ -45,18 +45,46 @@ def onboarding():
         raise AssertionError(f"no 'Continue Without Account' on the sign-in screen; visible {ui.visible_labels()}")
     ui.tap(guest)
     time.sleep(4)
-    # Profile picker (first run may ask to pick or create a profile).
-    for _ in range(3):
-        nodes = ui.screenshot("02_after_auth")
+    # Guest accounts start with no profiles: "Who's watching?" shows only "Manage Profiles", and a
+    # profile has to be created (Manage Profiles → Add Profile → name → Create Profile) first.
+    created = False
+    for attempt in range(4):
+        nodes = ui.screenshot(f"02_after_auth_{attempt}")
         labels = " ".join(ui.visible_labels(nodes))
         if "Home" in labels and ("Search" in labels or "Library" in labels):
-            return "main tabs visible"
-        profile = ui.find(r"(Profile 1|Main|Default|Who's watching|Add Profile)", timeout=5)
-        if profile:
-            ui.tap(profile)
-            time.sleep(3)
+            return "main tabs visible" + (" (created guest profile)" if created else "")
+        tester = ui.find(r"^Tester$", timeout=2)
+        if tester and ui.find(r"Who's watching", timeout=1):
+            done = ui.find(r"^Done$", timeout=1)
+            if done:
+                ui.tap(done)  # leave edit mode, otherwise tapping the profile opens its editor
+            ui.tap(ui.find(r"^Tester$", timeout=3) or tester)
+            time.sleep(4)
+            continue
+        if not created and ui.find(r"Who's watching", timeout=2):
+            add = ui.find(r"^Add Profile$", timeout=2)
+            if add is None:
+                ui.tap_text(r"^Manage Profiles$", timeout=5)
+                add = ui.wait_for(r"^Add Profile$", timeout=10)
+            ui.tap(add)
+            time.sleep(2)
+            ui.tap_text(r"Profile name", timeout=10)
+            ui.type_text("Tester")
+            ui.hide_keyboard()
+            ui.screenshot("02_profile_editor")
+            create = None
+            for _ in range(4):
+                create = ui.find(r"^Create Profile$", timeout=3)
+                if create:
+                    break
+                ui.swipe_up()
+            if create is None:
+                raise AssertionError(f"no 'Create Profile' button; visible {ui.visible_labels()}")
+            ui.tap(create)
+            created = True
+            time.sleep(5)
     ui.wait_for(r"^Home$", timeout=40)
-    return "main tabs visible"
+    return "main tabs visible" + (" (created guest profile)" if created else "")
 
 
 def install_addon(url, expect_name):

@@ -70,6 +70,11 @@ SCRIPTS = [
         lambda m: ("open_title", dict(zip(("id", "type"), first_result_id(last_result(m, "search_titles"), "The Matrix", "movie")))),
         lambda m: "Opened The Matrix (1999).",
     ]),
+    (r"^\s*open the matrix", [
+        lambda m: ("search_titles", {"query": "The Matrix", "type": "movie"}),
+        lambda m: ("open_title", dict(zip(("id", "type"), first_result_id(last_result(m, "search_titles"), "The Matrix", "movie")))),
+        lambda m: "Opened The Matrix (1999).",
+    ]),
     (r"add (this|it) to my library", [
         lambda m: ("get_app_state", {}),
         lambda m: ("add_to_library", dict(zip(("id", "type"), current_title(m)))),
