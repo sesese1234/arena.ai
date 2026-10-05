@@ -98,7 +98,8 @@ def onboarding():
                     break
                 ui.swipe_up()
             if create is None:
-                raise AssertionError(f"no 'Create Profile' button; visible {ui.visible_labels()}")
+                print(f"  no 'Create Profile' button yet; visible {ui.visible_labels()[:12]}", flush=True)
+                continue
             ui.tap(create)
             created = True
             time.sleep(5)

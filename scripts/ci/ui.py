@@ -174,16 +174,12 @@ def back():
     key(4)
 
 
-_IME_SHOWN = re.compile(r"mInputShown=true|isInputViewShown=true|mIsInputViewShown=true|mImeShowing=true|imeVisible=true")
-
-
 def keyboard_shown():
-    """Best effort across API levels; CI also gives the AVD a hardware keyboard so the soft one stays hidden."""
-    if _IME_SHOWN.search(sh("shell", "dumpsys", "input_method")):
-        return True
+    """True only when the IME window is actually on screen. CI gives the AVD a hardware keyboard, so
+    the soft keyboard normally never appears; a false positive here would press Back and leave the
+    current screen, so this errs on the side of False."""
     windows = sh("shell", "dumpsys", "window", "InputMethod")
-    # A hidden IME window keeps existing but reports mViewVisibility=0x8 and no surface.
-    return "mViewVisibility=0x0" in windows and "mHasSurface=true" in windows
+    return "mViewVisibility=0x0" in windows and "mHasSurface=true" in windows and "isVisible=true" in windows
 
 
 def hide_keyboard():

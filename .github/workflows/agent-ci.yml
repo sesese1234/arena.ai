@@ -149,9 +149,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           # A hardware keyboard keeps the soft keyboard from covering the tab bar and the assistant button.
-          pre-emulator-launch-script: |
-            cfg="${ANDROID_AVD_HOME:-$HOME/.android/avd}/test.avd/config.ini"
-            if [ -f "$cfg" ]; then sed -i '/^hw.keyboard/d' "$cfg"; echo "hw.keyboard=yes" >> "$cfg"; fi
+          enable-hw-keyboard: true
           script: |
             bash scripts/ci/run-emulator-flows.sh "${{ steps.apk.outputs.debug }}" debug
             bash scripts/ci/run-emulator-flows.sh "${{ steps.apk.outputs.release }}" release
