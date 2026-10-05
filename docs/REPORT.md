@@ -109,4 +109,10 @@ _Pending: filled in from the latest CI run (baseline flows + agent tasks, debug 
   upstream code, worth reviewing upstream.
 - Build: upstream's daemon sizes (12 GB + 8 GB) exceed hosted runners; reduced in CI.
 - Upstream issue/PR automation workflows would act on this repository; removed.
+- Guest onboarding: after *Continue Without Account* the app shows an empty *Who's watching?*
+  screen (a guest has no profiles, and the screen offers only *Manage Profiles*). You have to
+  tap Manage Profiles → Add Profile → Create Profile before reaching Home. It isn't broken, but
+  it's easy to mistake for a hang. The CI flow does these steps.
+- On slow CI emulators the system sometimes shows "Pixel Launcher isn't responding" over the
+  app. This is an emulator issue, not an app issue; the flow scripts tap *Wait*.
 - _On-device baseline: pending (see §4)._
