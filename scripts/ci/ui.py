@@ -15,7 +15,13 @@ PACKAGE = os.environ.get("APP_PACKAGE", "com.nuviodebug.com")
 os.makedirs(OUT, exist_ok=True)
 
 
+_device_gone = False
+
+
 def sh(*args, check=False, timeout=120):
+    global _device_gone
+    if _device_gone:
+        raise RuntimeError("emulator is gone (lost from adb earlier in this run)")
     result = subprocess.run([ADB, *args], capture_output=True, text=True, timeout=timeout)
     if result.returncode != 0 and ("not found" in result.stderr or "offline" in result.stderr):
         # The emulator dropped off adb once mid-run (run #20); try to get it back once.
@@ -26,6 +32,9 @@ def sh(*args, check=False, timeout=120):
         except subprocess.TimeoutExpired:
             pass
         result = subprocess.run([ADB, *args], capture_output=True, text=True, timeout=timeout)
+        if result.returncode != 0 and ("not found" in result.stderr or "offline" in result.stderr):
+            _device_gone = True  # fail the remaining steps fast instead of waiting 90 s each
+            raise RuntimeError(f"emulator lost from adb: {result.stderr.strip()[:120]}")
     if check and result.returncode != 0:
         raise RuntimeError(f"adb {' '.join(args)} failed: {result.stderr.strip()}")
     return result.stdout

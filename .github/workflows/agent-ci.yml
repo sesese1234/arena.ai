@@ -107,6 +107,15 @@ jobs:
       actions: read
       contents: read
     steps:
+      - name: Free disk space
+        # The emulator's userdata image, screen recordings and logcat filled the runner disk in
+        # runs #20-#21 ("Free space left: 12 MB"), and the emulator died mid-run.
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/share/boost \
+            /usr/local/lib/node_modules /opt/hostedtoolcache/CodeQL /usr/share/swift /usr/local/share/powershell || true
+          sudo docker image prune --all --force > /dev/null 2>&1 || true
+          df -h /
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
