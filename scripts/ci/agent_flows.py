@@ -115,7 +115,11 @@ def chat_transcript():
     nodes = ui.dump()
     tools = [n.desc.replace("Tool ", "") for n in nodes if n.desc.startswith("Tool ")]
     replies = [n.desc.replace("Assistant: ", "") for n in nodes if n.desc.startswith("Assistant: ")]
-    errors = [n.text for n in nodes if n.rid.endswith("agent_error")]
+    errors = []
+    for box in (n for n in nodes if n.rid.endswith("agent_error")):
+        x1, y1, x2, y2 = box.bounds
+        inner = [n.label for n in nodes if n is not box and n.label and x1 <= n.bounds[0] and n.bounds[2] <= x2 and y1 <= n.bounds[1] and n.bounds[3] <= y2]
+        errors.append(" ".join(inner) or box.label or "(error with no text)")
     return tools, replies, errors
 
 
@@ -232,7 +236,7 @@ def main():
     parser.add_argument("--addon-host", default="10.0.2.2:7000")
     parser.add_argument("--title", default="Agent tasks")
     args = parser.parse_args()
-    flow = ui.Flow(f"{args.title} — provider: {AGENT_PROVIDER}", before=ui.ensure_app)
+    flow = ui.Flow(f"{args.title} — provider: {AGENT_PROVIDER}", before=base.ensure_signed_in)
     if not flow.step("Configure provider in assistant settings", configure_provider):
         flow.report()
         return

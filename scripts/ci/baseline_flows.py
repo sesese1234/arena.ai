@@ -60,7 +60,9 @@ def go_home():
 
 
 def onboarding():
-    ui.screenshot("01_launch")
+    labels = " ".join(ui.visible_labels(ui.screenshot("01_launch")))
+    if "Home" in labels and ("Search" in labels or "Library" in labels):
+        return "already signed in (guest)"
     guest = None
     for _ in range(6):
         guest = ui.find(r"Continue Without Account", timeout=8)
@@ -239,6 +241,9 @@ def continue_watching():
     nodes = ui.screenshot("40_home_continue_watching")
     labels = " ".join(ui.visible_labels(nodes))
     if "Continue" not in labels:
+        ui.swipe_up()
+        labels = " ".join(ui.visible_labels(ui.screenshot("40b_home_scrolled")))
+    if "Continue" not in labels:
         raise AssertionError("no Continue Watching row")
     return "continue watching row visible"
 
@@ -317,6 +322,15 @@ def remove_addon():
     return "removed (after Yes in the confirm dialog)"
 
 
+def ensure_signed_in():
+    """Relaunches the app if needed and redoes guest onboarding if it came back on the sign-in or
+    profile screen (e.g. after the system killed it for an ANR on a slow emulator)."""
+    ui.ensure_app()
+    if ui.find(r"Continue Without Account|Who's watching", timeout=2):
+        print("  [ensure_signed_in] app is back at sign-in/profile gate; onboarding again", flush=True)
+        onboarding()
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--addon-host", default="10.0.2.2:7000")
@@ -326,7 +340,7 @@ def main():
 
     ui.sh("logcat", "-c")
     ui.launch()
-    flow = Flow(args.title, before=ui.ensure_app)
+    flow = Flow(args.title, before=ensure_signed_in)
     flow.step("Onboarding (continue without account)", onboarding)
     flow.step("Install addon: Cinemeta", install_addon(CINEMETA, "Cinemeta"))
     flow.step("Install addon: OpenSubtitles", install_addon(OPENSUBS, "OpenSubtitles"))

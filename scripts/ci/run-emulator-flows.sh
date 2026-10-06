@@ -26,8 +26,9 @@ adb shell settings put global window_animation_scale 0
 adb shell settings put global transition_animation_scale 0
 adb shell settings put global animator_duration_scale 0
 adb shell settings put secure show_ime_with_hard_keyboard 0
-# Don't let slow-emulator ANR/crash dialogs from other apps cover the app (ignored where unsupported).
-adb shell settings put global hide_error_dialogs 1 || true
+# Keep ANR dialogs visible: with hide_error_dialogs the system kills an app that ANRs during a slow
+# cold start instead of letting the flow scripts answer "Wait".
+adb shell settings put global hide_error_dialogs 0 || true
 # Skip the "Viewing full screen / Got it" hint the player's immersive mode would show.
 adb shell settings put secure immersive_mode_confirmations confirmed || true
 adb shell getprop ro.build.version.release

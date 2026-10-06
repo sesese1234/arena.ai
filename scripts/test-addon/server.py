@@ -44,9 +44,10 @@ def ensure_media():
             raise SystemExit("ffmpeg is required to generate the test video")
         subprocess.run([
             "ffmpeg", "-y", "-loglevel", "error",
-            "-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=24:duration=60",
-            "-f", "lavfi", "-i", "sine=frequency=440:duration=60",
-            "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-g", "48",
+            # 20 minutes so a short test playback counts as in progress (Continue Watching), not finished.
+            "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=24:duration=1200",
+            "-f", "lavfi", "-i", "sine=frequency=440:duration=1200",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "32", "-pix_fmt", "yuv420p", "-g", "48",
             "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", "-metadata:s:a:0", "language=eng",
             video,
         ], check=True)

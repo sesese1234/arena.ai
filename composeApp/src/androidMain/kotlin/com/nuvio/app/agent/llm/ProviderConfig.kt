@@ -71,11 +71,11 @@ data class ProviderConfig(
 
 /** Replaces `${NAME}` placeholders (models.dev uses them for account ids and hosts). */
 fun expandTemplate(template: String, variables: Map<String, String>): String =
-    Regex("\\$\\{([A-Z0-9_]+)}").replace(template) { match ->
+    Regex("\\$\\{([A-Z0-9_]+)\\}").replace(template) { match ->
         variables[match.groupValues[1]]?.trim().orEmpty().ifEmpty { match.value }
     }
 
-fun String.hasUnresolvedTemplate(): Boolean = Regex("\\$\\{[A-Z0-9_]+}").containsMatchIn(this)
+fun String.hasUnresolvedTemplate(): Boolean = Regex("\\$\\{[A-Z0-9_]+\\}").containsMatchIn(this)
 
 /** The active selection used by the agent. */
 @Serializable
