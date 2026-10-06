@@ -131,12 +131,38 @@ dropped, #20 re-confirmed **13/13 baseline flows** on the release build and the 
 Matrix" opened Inception. The tool now starts the search itself (`SearchRepository.search` flips the
 state to loading synchronously); `play_title` does the same for streams.
 
+**Runs #21–#24** (APKs from run #21 at `2c04a9ce`, which include both agent fixes): the release
+build passed **13/13 baseline flows in every run**, and each of the seven agent tasks passed on the
+device at least once:
+
+| Agent task (mock provider configured in the app UI) | Passed in |
+|---|---|
+| "Install the OpenSubtitles addon" → `install_addon`, addon listed in Settings | #20, #21, #22, #23, #24 |
+| "Find The Matrix and open its details" → `search_titles` → `open_title(tt0133093)`, details screen shows The Matrix | #21, #22, #24 |
+| "What's on my continue-watching list?" → "Continue watching: The Matrix." | #18, #23, #24 |
+| "Remove the OpenSubtitles addon" → confirmation dialog shown, approved, `remove_addon` | #23, #24 |
+| "Search the web for who directed The Matrix, then open their other movie" → `web_search` → `search_titles` → `open_title`, Speed Racer (2008) details on screen | #23, #24 |
+| "Play the first stream and turn on English subtitles" → `play_title` → `play_stream` → `player_select_subtitles`; player verified in logcat | #18 |
+| "Add this to my library" → `get_app_state` → `add_to_library` | tool ran in #18; see run #25 below |
+
+Every run from #20 on lost the emulator 17–22 minutes after boot, partway through the agent tasks.
+The host monitor added in #23 shows `qemu-system-x86` itself crashing: with 4 GB of guest RAM the
+7.9 GB runner was swapping, but with 2.5 GB (#24) it still had 2.3 GB free and no swap, and the
+crash happened anyway; the emulator's crash reporter then wrote a ~7 GB dump before the process
+exited. Nothing points at the app: the logcat captured before the agent phase has no
+`FATAL EXCEPTION` or app ANR, and an app crash can't take down the emulator process (the device
+log after the loss can't be read). The harness now fails fast once adb loses the device, writes the report regardless, runs
+the tasks still unconfirmed first and limits screen recording (host GPU path) to three tasks.
+
 The DeepSeek run on the emulator needs the `DEEPSEEK_API_KEY` Actions secret; the same agent code
 was exercised against real `deepseek-flash` by the JVM live tests (§4).
 
 ## 5. Known limitations
 - No KVM in the development container: all on-device evidence comes from CI emulators (artifacts
-  are kept 14 days).
+  are kept 14 days). The hosted runner's emulator (API 34, software GPU) crashes 17–22 minutes
+  into a run, so one run can't always cover every flow; results above are aggregated per run.
+- The unminified debug build hits input-dispatch ANRs on the software-rendered CI emulator, so the
+  on-device evidence is from the R8 release build (the debug pass runs after it, time-boxed).
 - `DEEPSEEK_API_KEY` must be added as an Actions secret by the repo owner (automated secret
   writes were blocked); until then the emulator agent tasks use the scripted mock provider and
   the live JVM tests are skipped in CI.
@@ -166,5 +192,5 @@ was exercised against real `deepseek-flash` by the JVM live tests (§4).
   tap Manage Profiles → Add Profile → Create Profile before reaching Home. It isn't broken, but
   it's easy to mistake for a hang. The CI flow does these steps.
 - On slow CI emulators the system sometimes shows "Pixel Launcher isn't responding" over the
-  app. This is an emulator issue, not an app issue; the flow scripts tap *Wait*.
-- _On-device baseline: pending (see §4)._
+  app. This is an emulator issue, not an app issue; the flow scripts close the hung system app
+  (and wait if the dialog is about Nuvio itself).
