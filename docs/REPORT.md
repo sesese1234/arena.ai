@@ -155,11 +155,17 @@ boot. Runs #23–#30 narrowed it down:
 - **Not a fixed lifetime.** With `flows: agent-setup` (#27–#30) it died ~10 minutes after boot,
   as soon as the agent started playback.
 - **It is the emulator segfaulting.** The disk spike before each loss was `systemd-coredump`
-  writing a 6 GB core of the emulator (#29). The core's metadata (#30): `qemu-system-x86_64-headless`,
-  `SIGSEGV` on a worker thread inside the emulator binary, while the agent was starting playback
-  of The Matrix through `play_title` → `play_stream` (the same in #26–#30). An app can't make
-  the host emulator process segfault; the suspect is the emulator's host-side video decoder
-  (`hwcodec.avcdec=2`), which run #31 turns off with `-feature -HardwareDecoder`.
+  writing a 6 GB core of the emulator (#29). The core's metadata (#30, #31):
+  `qemu-system-x86_64-headless`, `SIGSEGV` on a worker thread inside the emulator binary.
+- **Not playback or the video decoder.** Turning the host-side decoder off
+  (`-feature -HardwareDecoder`, #31) didn't help, and #31 died before playback started.
+- **The common factor** across #22–#31 is The Matrix's details screen left up by the agent for
+  30–90 s (Speed Racer's and Inception's didn't trigger it, nor did The Matrix's when the
+  baseline flow passed through it in ~20 s). An app can't make the host emulator process
+  segfault, so this is an emulator bug (37.2.12, software GPU) that something on that screen
+  provokes; it hasn't been narrowed further. The play task now goes straight to the stream list
+  (`search_titles` → `play_title` → `play_stream` → `player_select_subtitles`), as a user asking
+  "Play The Matrix…" would.
 
 The harness now fails fast once adb loses the device and writes the report regardless; the
 workflow's `flows: agent-setup` and `agent_tasks` inputs run only the baseline steps the agent
