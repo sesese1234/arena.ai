@@ -84,6 +84,14 @@ SCRIPTS = [
         lambda m: ("add_to_library", dict(zip(("id", "type"), current_title(m)))),
         lambda m: "Added it to your library.",
     ]),
+    (r"play the matrix.*english subtitles", [
+        lambda m: ("search_titles", {"query": "The Matrix", "type": "movie"}),
+        lambda m: ("play_title", dict(zip(("id", "type"), first_result_id(last_result(m, "search_titles"), "The Matrix", "movie")))),
+        lambda m: ("play_stream", {"index": 0}),
+        lambda m: ("player_select_subtitles", {"language": "English"}),
+        lambda m: ("get_player_state", {}),
+        lambda m: "Playing The Matrix with English subtitles on.",
+    ]),
     (r"play the first stream.*english subtitles", [
         lambda m: ("get_app_state", {}),
         lambda m: ("play_title", dict(zip(("id", "type"), current_title(m)))),

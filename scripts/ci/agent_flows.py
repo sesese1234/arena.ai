@@ -236,10 +236,10 @@ def task_add_to_library():
 
 
 def task_play_with_subtitles():
-    # Re-open The Matrix so "the first stream" refers to it.
-    ask("Open The Matrix (1999) details", "reopen_matrix", timeout=180)
-    tools, reply, _ = ask("Play the first stream and turn on English subtitles", "play_subs", timeout=300)
-    assert "play_stream" in tools and "player_select_subtitles" in tools, tools
+    # One request straight to the stream list: the CI emulator's qemu segfaulted (runs #22-#31)
+    # 30-90 s after the agent left The Matrix's details screen up, so don't stop there first.
+    tools, reply, _ = ask("Play The Matrix and turn on English subtitles", "play_subs", timeout=300)
+    assert "play_title" in tools and "play_stream" in tools and "player_select_subtitles" in tools, tools
     close_chat()
     time.sleep(3)
     ui.screenshot("agent_play_subs_player")
