@@ -187,7 +187,9 @@ jobs:
           ram-size: 2560M
           heap-size: 512M
           disk-size: 6000M
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          # qemu-system-x86_64 segfaulted (SIGSEGV, systemd-coredump, run #30) each time the agent started
+          # playback in #26-#30; the host-side hardware decoder (hwcodec.avcdec=2) is the suspect.
+          emulator-options: -no-window -gpu swiftshader_indirect -feature -HardwareDecoder -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           # A hardware keyboard keeps the soft keyboard from covering the tab bar and the assistant button.
           enable-hw-keyboard: true
