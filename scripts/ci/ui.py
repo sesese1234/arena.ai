@@ -70,6 +70,13 @@ def dismiss_system_dialogs(nodes=None):
     """Taps 'Wait' on system ANR dialogs ("Pixel Launcher isn't responding") that slow emulators
     show over the app. Returns True if one was dismissed."""
     nodes = nodes if nodes is not None else dump()
+    if any(n.label == "Viewing full screen" for n in nodes):
+        got_it = next((n for n in nodes if n.label == "Got it"), None)
+        if got_it:
+            print("  [system dialog] dismissing immersive-mode hint", flush=True)
+            sh("shell", "input", "tap", *map(str, got_it.center))
+            time.sleep(1)
+            return True
     if not any("isn't responding" in n.label or "keeps stopping" in n.label for n in nodes):
         return False
     # Our own app: wait it out. Another app (Pixel Launcher, System UI): close it, since waiting
@@ -197,6 +204,13 @@ def swipe_up():
     w, h = (int(m.group(1)), int(m.group(2))) if m else (1080, 2400)
     sh("shell", "input", "swipe", str(w // 2), str(int(h * 0.75)), str(w // 2), str(int(h * 0.3)), "400")
     time.sleep(1)
+
+
+def player_started():
+    """ExoPlayer (or libmpv) initialised and a decoder came up, from the tagged log lines only;
+    uiautomator dumps flood the main buffer, so a plain tail misses them."""
+    log = sh("logcat", "-d", "-s", "ExoPlayerImpl:I", "MediaCodec:I", "mpv:V", "MPVLib:V", timeout=120)
+    return "ExoPlayerImpl" in log or "MediaCodec" in log or "mpv" in log.lower()
 
 
 def launch(activity="com.nuvio.app.MainActivity"):

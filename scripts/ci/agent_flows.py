@@ -202,8 +202,7 @@ def task_play_with_subtitles():
     close_chat()
     time.sleep(3)
     ui.screenshot("agent_play_subs_player")
-    log = ui.sh("logcat", "-d", "-t", "2000")
-    assert re.search(r"ExoPlayerImpl|mpv|MediaCodec", log, re.IGNORECASE), "no player activity in logcat"
+    assert ui.player_started(), "no player activity in logcat"
     return reply
 
 

@@ -224,8 +224,7 @@ def start_playback():
         ui.tap(stream)
     time.sleep(12)
     ui.screenshot("31_player")
-    log = ui.sh("logcat", "-d", "-t", "400")
-    if "ExoPlayerImpl" not in log and "mpv" not in log.lower() and "MediaCodec" not in log:
+    if not ui.player_started():
         raise AssertionError("no player activity in logcat")
     return "player started"
 
