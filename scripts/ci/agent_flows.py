@@ -141,12 +141,24 @@ def confirmation_buttons():
     return (row[0], cancel) if row else None
 
 
+# The CI emulator's qemu process has crashed 17-22 minutes in during agent tasks (runs #21-#24, with
+# 4 GB and 2.5 GB of guest RAM alike). Screen recording goes through the emulator's host GPU path,
+# so only the first few tasks are recorded; the rest keep screenshots and uiautomator dumps.
+MAX_RECORDINGS = int(os.environ.get("AGENT_MAX_RECORDINGS", "3"))
+_recorded = 0
+
+
 def ask(prompt, name, timeout=240, approve=None):
-    ui.start_recording(f"agent_{name}", limit_s=min(timeout, 180))
+    global _recorded
+    record = _recorded < MAX_RECORDINGS
+    if record:
+        _recorded += 1
+        ui.start_recording(f"agent_{name}", limit_s=min(timeout, 180))
     try:
         return _ask(prompt, name, timeout, approve)
     finally:
-        ui.stop_recording(f"agent_{name}")
+        if record:
+            ui.stop_recording(f"agent_{name}")
 
 
 def _ask(prompt, name, timeout, approve):
@@ -265,17 +277,21 @@ def main():
     if not flow.step("Configure provider in assistant settings", configure_provider):
         flow.report()
         return
-    # Order: tasks not yet seen passing on a device first (CI emulators have died mid-run).
+    # Order: tasks not yet seen passing together on one device run first (CI emulators have died
+    # mid-run). Removing OpenSubtitles needs the install task before it.
+    flow.step("Agent: find The Matrix and open its details", task_find_matrix)
+    flow.step("Agent: add this to my library", task_add_to_library)
+    flow.step("Agent: play first stream + English subtitles", task_play_with_subtitles)
     flow.step("Agent: install the OpenSubtitles addon", task_install_addon)
     flow.step("Agent: what's on my continue-watching list", task_continue_watching)
     flow.step("Agent: destructive action asks for confirmation", task_destructive_confirmation)
     flow.step("Agent: web search director, open their other movie", task_web_then_open)
-    flow.step("Agent: find The Matrix and open its details", task_find_matrix)
-    flow.step("Agent: add this to my library", task_add_to_library)
-    flow.step("Agent: play first stream + English subtitles", task_play_with_subtitles)
-    with open(f"{ui.OUT}/agent-logcat.txt", "w") as fh:
-        fh.write(ui.sh("logcat", "-d", timeout=120))
-    flow.report()
+    try:
+        with open(f"{ui.OUT}/agent-logcat.txt", "w") as fh:
+            fh.write(ui.sh("logcat", "-d", timeout=120))
+    except Exception as error:  # noqa: BLE001 - the report matters more than the log
+        print(f"  [logcat] not collected: {error}", flush=True)
+    return flow.report()
 
 
 if __name__ == "__main__":
