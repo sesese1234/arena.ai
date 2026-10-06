@@ -72,7 +72,12 @@ def dismiss_system_dialogs(nodes=None):
     nodes = nodes if nodes is not None else dump()
     if not any("isn't responding" in n.label or "keeps stopping" in n.label for n in nodes):
         return False
-    button = next((n for n in nodes if n.label == "Wait"), None) or next((n for n in nodes if n.label in ("Close app", "Close")), None)
+    # Our own app: wait it out. Another app (Pixel Launcher, System UI): close it, since waiting
+    # keeps the hung app around and its dialog comes straight back.
+    ours = any(("Nuvio" in n.label or PACKAGE in n.label) and "isn't responding" in n.label for n in nodes)
+    wait = next((n for n in nodes if n.label == "Wait"), None)
+    close = next((n for n in nodes if n.label in ("Close app", "Close")), None)
+    button = (wait or close) if ours else (close or wait)
     if button is None:
         return False
     print(f"  [system dialog] dismissing with '{button.label}'", flush=True)
@@ -175,16 +180,15 @@ def back():
 
 
 def keyboard_shown():
-    """True only when the IME window is actually on screen. CI gives the AVD a hardware keyboard, so
-    the soft keyboard normally never appears; a false positive here would press Back and leave the
-    current screen, so this errs on the side of False."""
-    windows = sh("shell", "dumpsys", "window", "InputMethod")
-    return "mViewVisibility=0x0" in windows and "mHasSurface=true" in windows and "isVisible=true" in windows
+    """Whether the soft keyboard is drawn. With the AVD's hardware keyboard (CI) the IME window still
+    reports as visible while drawing nothing, so this is informational only."""
+    return "mInputShown=true" in sh("shell", "dumpsys", "input_method")
 
 
 def hide_keyboard():
-    if keyboard_shown():
-        key(4)
+    """No-op on purpose. CI runs with a hardware keyboard, so the soft keyboard never covers the UI,
+    and pressing Back to hide it would close screens (run #14 lost the profile editor that way)."""
+    return False
 
 
 def swipe_up():

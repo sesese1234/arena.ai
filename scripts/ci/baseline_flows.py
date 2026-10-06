@@ -87,8 +87,12 @@ def onboarding():
                 add = ui.wait_for(r"^Add Profile$", timeout=10)
             ui.tap(add)
             time.sleep(2)
-            ui.tap_text(r"Profile name", timeout=10)
-            ui.type_text("Tester")
+            field = ui.wait_for(r"Profile name", timeout=10)
+            for _ in range(2):
+                ui.tap(field)
+                ui.type_text("Tester")
+                if ui.find(r"^Tester$", timeout=4):
+                    break
             ui.hide_keyboard()
             ui.screenshot("02_profile_editor")
             create = None
