@@ -180,6 +180,7 @@ def browse_catalogs():
 
 
 def search_title():
+    go_home()  # with FLOWS=agent-setup this follows the addon screens, whose search is settings search
     ui.tap_text(r"^Search$", timeout=10)
     field = ui.find(r"Search movies", timeout=10)
     if field:

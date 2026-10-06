@@ -175,7 +175,8 @@ jobs:
           ram-size: 2560M
           heap-size: 512M
           disk-size: 6000M
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          # Vulkan off: qemu crashed soon after the agent opened a details screen in #22-#27 (crash handler, no kernel log); the host renderer is the suspect.
+          emulator-options: -no-window -gpu swiftshader_indirect -feature -Vulkan -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           # A hardware keyboard keeps the soft keyboard from covering the tab bar and the assistant button.
           enable-hw-keyboard: true
@@ -187,6 +188,11 @@ jobs:
         run: |
           sudo dmesg -T | grep -iE "oom|killed process|qemu|out of memory" | tail -40 > flow-artifacts/host-dmesg.txt || true
           cat flow-artifacts/host-dmesg.txt
+          # The emulator's crash handler (crashpad) keeps its reports here; keep the small ones.
+          ls -laR /tmp/android-runner 2>/dev/null | head -60 > flow-artifacts/emulator-crash-db.txt || true
+          mkdir -p flow-artifacts/emulator-crash
+          find /tmp/android-runner -type f -size -150M \( -name "*.dmp" -o -name "*.txt" -o -name "*.log" \) -exec cp {} flow-artifacts/emulator-crash/ \; 2>/dev/null || true
+          cat flow-artifacts/emulator-crash-db.txt
           tail -40 flow-artifacts/host-monitor.log || true
       - uses: actions/upload-artifact@v4
         if: always()
