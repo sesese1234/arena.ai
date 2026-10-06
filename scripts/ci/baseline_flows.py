@@ -22,6 +22,14 @@ def open_settings_tab():
     if tab is None:
         raise AssertionError(f"no Profile/Settings tab; visible {ui.visible_labels()}")
     ui.tap(tab)
+    # The tab reopens on the last settings sub-page; use the in-app Back arrow to reach the root.
+    for _ in range(3):
+        if ui.find(r"^(Switch Profile|ACCOUNT|GENERAL)$", timeout=3):
+            return
+        back = ui.find(r"^Back$", timeout=2)
+        if back is None:
+            return
+        ui.tap(back)
 
 
 def open_addons():
@@ -112,7 +120,7 @@ def onboarding():
 
 
 def install_addon(url, expect_name):
-    def run():
+    def run(attempt=0):
         open_addons()
         ui.screenshot(f"addons_before_{expect_name.split()[0].lower()}")
         field = ui.find(r"(manifest|addon url|https://|Paste)", timeout=10)
@@ -122,6 +130,8 @@ def install_addon(url, expect_name):
                 ui.tap(add)
             field = ui.wait_for(r"(manifest|URL|https://)", timeout=10)
         ui.tap(field)
+        ui.sh("shell", "input", "keycombination", "113", "29")  # Ctrl+A, so a retry replaces old text
+        ui.key(67)
         ui.type_text(url)
         ui.key(66)  # enter
         ui.hide_keyboard()
@@ -137,8 +147,16 @@ def install_addon(url, expect_name):
         if done:
             ui.tap(done)
         if "Install Failed" in modal_text:
+            if attempt == 0:
+                print(f"  install failed ({modal_text[:120]}); retrying once", flush=True)
+                return run(attempt=1)
             raise AssertionError(f"install failed: {modal_text[:300]}")
-        ui.wait_for(expect_name, timeout=20)
+        for _ in range(4):
+            if ui.find(expect_name, timeout=5):
+                break
+            ui.swipe_up()  # the installed list grows below the fold
+        else:
+            raise AssertionError(f"'{expect_name}' not listed; visible {ui.visible_labels()}")
         ui.screenshot(f"addons_after_{expect_name.split()[0].lower()}")
         ui.back()
         return f"{expect_name} listed"
@@ -201,7 +219,7 @@ def list_streams():
 
 
 def start_playback():
-    stream = ui.find(r"(AgentTest|Agent test stream)", timeout=5)
+    stream = ui.find(r"^AgentTest|^Agent test stream \(local", timeout=5)
     if stream:
         ui.tap(stream)
     time.sleep(12)
@@ -245,7 +263,13 @@ def library_flow():
         raise AssertionError("no Inception result")
     ui.tap(target)
     time.sleep(4)
-    save = ui.find(r"^(Add to library|Remove from library)$", timeout=8)
+    save = ui.find(r"^(Add to library|Remove from library)$", timeout=5)
+    if save is None:
+        more = ui.find(r"^More actions$", timeout=5)
+        if more:
+            ui.tap(more)
+            ui.screenshot("50_more_actions")
+            save = ui.find(r"^(Add to library|Remove from library)$", timeout=8)
     if save is None:
         raise AssertionError(f"no library button; visible {ui.visible_labels()}")
     ui.tap(save)

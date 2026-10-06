@@ -33,8 +33,13 @@ def find_id(tag, timeout=10):
     return None
 
 
-def tap_id(tag, timeout=10):
+def tap_id(tag, timeout=10, scroll=True):
     node = find_id(tag, timeout)
+    for _ in range(5 if scroll else 0):
+        if node is not None:
+            break
+        ui.swipe_up()  # long forms (provider editor) put later fields below the fold
+        node = find_id(tag, 3)
     if node is None:
         raise AssertionError(f"no element with test tag '{tag}'; visible {ui.visible_labels()[:25]}")
     ui.tap(node)
@@ -51,8 +56,8 @@ def open_chat():
     if find_id("agent_input", timeout=2):
         return
     ui.hide_keyboard()  # the soft keyboard would cover the floating button
-    tap_id("agent_fab", timeout=15)
-    find_id("agent_input", timeout=10) or tap_id("agent_fab")
+    tap_id("agent_fab", timeout=15, scroll=False)
+    find_id("agent_input", timeout=10) or tap_id("agent_fab", scroll=False)
 
 
 def close_chat():
@@ -92,6 +97,7 @@ def configure_provider():
         tap_id("agent_new_model")
         ui.type_text("mock-agent")
         ui.tap(ui.wait_for(r"^Add model$", timeout=5))
+        ui.wait_for(r"mock-agent", timeout=5)
         ui.hide_keyboard()
         ui.screenshot("agent_01_provider_editor")
         tap_id("agent_provider_save")
@@ -123,9 +129,9 @@ def ask(prompt, name, timeout=240, approve=None):
 
 def _ask(prompt, name, timeout, approve):
     open_chat()
-    tap_id("agent_input")
+    tap_id("agent_input", scroll=False)
     ui.type_text(prompt)
-    tap_id("agent_send")
+    tap_id("agent_send", scroll=False)
     deadline = time.time() + timeout
     confirmed = False
     seen_tools = []
@@ -133,7 +139,7 @@ def _ask(prompt, name, timeout, approve):
         time.sleep(2)
         if approve is not None and find_id("agent_confirm_ok", timeout=0.5):
             ui.screenshot(f"agent_{name}_confirmation")
-            tap_id("agent_confirm_ok" if approve else "agent_confirm_cancel")
+            tap_id("agent_confirm_ok" if approve else "agent_confirm_cancel", scroll=False)
             confirmed = True
             continue
         tools, _, _ = chat_transcript()
