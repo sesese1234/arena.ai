@@ -159,7 +159,9 @@ jobs:
           arch: x86_64
           target: google_apis
           profile: pixel_6
-          ram-size: 4096M
+          # 4096M pushed qemu to ~6.1 GB RSS on the 7.9 GB runner; the host swapped and the emulator died (run #23).
+          ram-size: 2560M
+          heap-size: 512M
           disk-size: 6000M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
