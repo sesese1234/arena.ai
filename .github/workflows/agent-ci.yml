@@ -156,6 +156,18 @@ jobs:
         run: |
           mkdir -p flow-artifacts
           nohup bash -c 'while true; do date -u; free -m; df -h / | tail -1; ps -eo pid,rss,pcpu,comm --sort=-rss | head -6; echo; sleep 30; done' > flow-artifacts/host-monitor.log 2>&1 &
+          # Since #23 the host disk grows ~5-7 GB in under a minute right before the emulator exits,
+          # and the space is freed when it does: log big files, including deleted-but-open ones.
+          cat > /tmp/bigfiles.sh <<'SH'
+          while true; do
+            date -u
+            sudo find / -xdev -type f -size +300M -mmin -2 -printf '%s %p\n' 2>/dev/null | sort -rn | head -8
+            sudo lsof -nP +L1 2>/dev/null | awk 'NR > 1 && $7 > 300000000 { print "deleted-open", $1, $2, $7, $NF }' | head -8
+            echo
+            sleep 20
+          done
+          SH
+          nohup bash /tmp/bigfiles.sh > flow-artifacts/host-bigfiles.log 2>&1 &
       - name: Run flows on emulator
         uses: reactivecircus/android-emulator-runner@v2
         env:
@@ -175,8 +187,7 @@ jobs:
           ram-size: 2560M
           heap-size: 512M
           disk-size: 6000M
-          # Vulkan off: qemu crashed soon after the agent opened a details screen in #22-#27 (crash handler, no kernel log); the host renderer is the suspect.
-          emulator-options: -no-window -gpu swiftshader_indirect -feature -Vulkan -no-snapshot -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           # A hardware keyboard keeps the soft keyboard from covering the tab bar and the assistant button.
           enable-hw-keyboard: true
