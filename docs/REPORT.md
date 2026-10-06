@@ -131,17 +131,17 @@ dropped, #20 re-confirmed **13/13 baseline flows** on the release build and the 
 Matrix" opened Inception. The tool now starts the search itself (`SearchRepository.search` flips the
 state to loading synchronously); `play_title` does the same for streams.
 
-**Runs #21–#32** (APKs from run #21 at `2c04a9ce`, which include both agent fixes): the release
+**Runs #21–#33** (APKs from run #21 at `2c04a9ce`, which include both agent fixes): the release
 build passed **13/13 baseline flows in every run**, and each of the seven agent tasks passed on the
 device at least once:
 
 | Agent task (mock provider configured in the app UI) | Passed in |
 |---|---|
-| "Install the OpenSubtitles addon" → `install_addon`, addon listed in Settings | #20, #21, #22, #23, #24 |
+| "Install the OpenSubtitles addon" → `install_addon`, addon listed in Settings | #20, #21, #22, #23, #24, #33 |
 | "Find The Matrix and open its details" → `search_titles` → `open_title(tt0133093)`, details screen shows The Matrix | #21, #22, #24, #25, #26, #32 |
 | "What's on my continue-watching list?" → "Continue watching: The Matrix." | #18, #23, #24, #32 (reply on screen; tool card read fixed after) |
-| "Remove the OpenSubtitles addon" → confirmation dialog shown, approved, `remove_addon` | #23, #24, #32 |
-| "Search the web for who directed The Matrix, then open their other movie" → `web_search` → `search_titles` → `open_title`, Speed Racer (2008) details on screen | #23, #24 |
+| "Remove the OpenSubtitles addon" → confirmation dialog shown, approved, `remove_addon` | #23, #24, #32, #33 |
+| "Search the web for who directed The Matrix, then open their other movie" → `web_search` → `search_titles` → `open_title`, Speed Racer (2008) details on screen (`open_title(tt0811080)`) | #23, #24, #33 (in #33 `web_search` timed out from the CI network and the agent carried on with what it knew) |
 | "Play The Matrix and turn on English subtitles" → `search_titles` → `play_title(tt0133093)` → `play_stream` → `player_select_subtitles(English)` → `get_player_state`; the test video plays with the "[EN] English subtitles are on" cue on screen | #18 (as "play the first stream"), #32 |
 | "Add this to my library" (on The Matrix's details) → `get_app_state` → `add_to_library`, The Matrix shown in the Library tab | #26 |
 
