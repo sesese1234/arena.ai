@@ -21,23 +21,24 @@ if [ -z "$APK" ] || [ ! -f "$APK" ]; then
   exit 0
 fi
 echo "Installing $APK (${VARIANT}, package ${APP_PACKAGE}, agent provider ${AGENT_PROVIDER})"
-adb install -r -g "$APK" || { echo "install failed"; exit 1; }
-adb shell settings put global window_animation_scale 0
-adb shell settings put global transition_animation_scale 0
-adb shell settings put global animator_duration_scale 0
-adb shell settings put secure show_ime_with_hard_keyboard 0
+timeout 600 adb install -r -g "$APK" || { echo "install failed"; exit 1; }
+timeout 120 adb shell settings put global window_animation_scale 0
+timeout 120 adb shell settings put global transition_animation_scale 0
+timeout 120 adb shell settings put global animator_duration_scale 0
+timeout 120 adb shell settings put secure show_ime_with_hard_keyboard 0
 # Keep ANR dialogs visible: with hide_error_dialogs the system kills an app that ANRs during a slow
 # cold start instead of letting the flow scripts answer "Wait".
-adb shell settings put global hide_error_dialogs 0 || true
+timeout 120 adb shell settings put global hide_error_dialogs 0 || true
 # Skip the "Viewing full screen / Got it" hint the player's immersive mode would show.
-adb shell settings put secure immersive_mode_confirmations confirmed || true
-adb shell getprop ro.build.version.release
-adb logcat -c || true
+timeout 120 adb shell settings put secure immersive_mode_confirmations confirmed || true
+timeout 120 adb shell getprop ro.build.version.release
+timeout 120 adb logcat -c || true
 # Warm-up launch: the first cold start of the (unminified) debug build can block the main thread
 # past the 5 s input deadline on the emulator; let it finish before the flows start timing taps.
-adb shell am start -W -n "$APP_PACKAGE/com.nuvio.app.MainActivity" || true
+# No -W: waiting for the launch to report "drawn" blocked forever when the debug build ANRed.
+timeout 60 adb shell am start -n "$APP_PACKAGE/com.nuvio.app.MainActivity" || true
 sleep 45
-adb shell am force-stop "$APP_PACKAGE" || true
+timeout 120 adb shell am force-stop "$APP_PACKAGE" || true
 
 # Time boxes keep one slow variant (the unminified debug build ANRs on the software-rendered
 # emulator) from eating the job timeout before the release build is tested.
@@ -47,13 +48,13 @@ timeout "$BASE_LIMIT" python3 scripts/ci/baseline_flows.py --addon-host 10.0.2.2
 timeout "$AGENT_LIMIT" python3 scripts/ci/agent_flows.py --addon-host 10.0.2.2:7000 --title "Agent tasks (${VARIANT})" \
   || echo "::warning::agent tasks (${VARIANT}) stopped: exit $? (124 = time box)"
 
-adb logcat -d -b crash > "$FLOW_OUT/crash-buffer.txt" || true
-adb logcat -d > "$FLOW_OUT/logcat-final.txt" || true
+timeout 120 adb logcat -d -b crash > "$FLOW_OUT/crash-buffer.txt" || true
+timeout 120 adb logcat -d > "$FLOW_OUT/logcat-final.txt" || true
 if grep -q "FATAL EXCEPTION" "$FLOW_OUT/logcat-final.txt"; then
   echo "::warning::FATAL EXCEPTION found in ${VARIANT} logcat"
   grep -A 30 "FATAL EXCEPTION" "$FLOW_OUT/logcat-final.txt" | head -80
 fi
 # Leave the device free for the next variant.
-adb shell am force-stop "$APP_PACKAGE" || true
-adb shell input keyevent 3 || true
+timeout 120 adb shell am force-stop "$APP_PACKAGE" || true
+timeout 120 adb shell input keyevent 3 || true
 exit 0
