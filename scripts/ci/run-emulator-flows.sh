@@ -33,6 +33,11 @@ adb shell settings put global hide_error_dialogs 0 || true
 adb shell settings put secure immersive_mode_confirmations confirmed || true
 adb shell getprop ro.build.version.release
 adb logcat -c || true
+# Warm-up launch: the first cold start of the (unminified) debug build can block the main thread
+# past the 5 s input deadline on the emulator; let it finish before the flows start timing taps.
+adb shell am start -W -n "$APP_PACKAGE/com.nuvio.app.MainActivity" || true
+sleep 45
+adb shell am force-stop "$APP_PACKAGE" || true
 
 python3 scripts/ci/baseline_flows.py --addon-host 10.0.2.2:7000 --title "Baseline app flows (${VARIANT})"
 python3 scripts/ci/agent_flows.py --addon-host 10.0.2.2:7000 --title "Agent tasks (${VARIANT})" || true

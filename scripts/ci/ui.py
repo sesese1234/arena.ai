@@ -172,9 +172,23 @@ def tap_text(pattern, timeout=20):
 
 
 def type_text(text):
-    escaped = text.replace("\\", "\\\\").replace(" ", "%s").replace("'", "\\'").replace("&", "\\&").replace("?", "\\?")
-    sh("shell", "input", "text", escaped)
-    time.sleep(0.8)
+    """Types via `adb shell input text`. Every shell metacharacter is escaped (unescaped parentheses
+    made the device shell drop a whole prompt) and long text goes in short chunks, because the
+    emulator dropped everything after ~30 characters of a single long `input text`."""
+    def esc(chunk):
+        out = []
+        for ch in chunk:
+            if ch == " ":
+                out.append("%s")
+            elif ch.isalnum() or ch in "._-/:@=+,":
+                out.append(ch)
+            else:
+                out.append("\\" + ch)
+        return "".join(out)
+    for i in range(0, len(text), 12):
+        sh("shell", "input", "text", esc(text[i:i + 12]))
+        time.sleep(0.15)
+    time.sleep(0.6)
 
 
 def key(code):

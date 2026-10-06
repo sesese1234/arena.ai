@@ -123,6 +123,24 @@ def chat_transcript():
     return tools, replies, errors
 
 
+def confirmation_buttons():
+    """(confirm, cancel) nodes of the assistant's confirmation dialog, or None. The dialog is its
+    own window, so its test tags may not be exported; fall back to the Cancel button and the
+    button beside it."""
+    nodes = ui.dump()
+    ok = next((n for n in nodes if n.rid.endswith("agent_confirm_ok")), None)
+    cancel = next((n for n in nodes if n.rid.endswith("agent_confirm_cancel")), None)
+    if ok and cancel:
+        return ok, cancel
+    if not any("assistant wants to" in n.label.lower() for n in nodes):
+        return None
+    cancel = next((n for n in nodes if n.label == "Cancel"), None)
+    if cancel is None:
+        return None
+    row = [n for n in nodes if n.label and n is not cancel and abs(n.center[1] - cancel.center[1]) < 40 and n.center[0] > cancel.center[0]]
+    return (row[0], cancel) if row else None
+
+
 def ask(prompt, name, timeout=240, approve=None):
     ui.start_recording(f"agent_{name}", limit_s=min(timeout, 180))
     try:
@@ -141,11 +159,13 @@ def _ask(prompt, name, timeout, approve):
     seen_tools = []
     while time.time() < deadline:
         time.sleep(2)
-        if approve is not None and find_id("agent_confirm_ok", timeout=0.5):
-            ui.screenshot(f"agent_{name}_confirmation")
-            tap_id("agent_confirm_ok" if approve else "agent_confirm_cancel", scroll=False)
-            confirmed = True
-            continue
+        if approve is not None:
+            dialog = confirmation_buttons()
+            if dialog:
+                ui.screenshot(f"agent_{name}_confirmation")
+                ui.tap(dialog[0] if approve else dialog[1])
+                confirmed = True
+                continue
         tools, _, _ = chat_transcript()
         seen_tools = sorted(set(seen_tools) | set(tools))
         if find_id("agent_send", timeout=0.5) and not find_id("agent_stop", timeout=0.5):
@@ -171,7 +191,12 @@ def task_install_addon():
     tools, reply, _ = ask("Install the OpenSubtitles addon", "install_addon")
     assert "install_addon" in tools, tools
     base.open_addons()
-    ui.wait_for(r"OpenSubtitles", timeout=15)
+    for _ in range(4):
+        if ui.find(r"OpenSubtitles", timeout=5):
+            break
+        ui.swipe_up()
+    else:
+        raise AssertionError(f"OpenSubtitles not listed after the agent installed it; visible {ui.visible_labels()}")
     ui.screenshot("agent_install_addon_verified")
     ui.back()
     base.go_home()

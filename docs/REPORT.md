@@ -79,8 +79,50 @@ existed** (§6); the 6th baseline failure (Robolectric download) is fixed by the
 the agent's kotlinx-serialization serializers. The release APK installs and launches on the
 emulator.
 
-### On-device (GitHub Actions emulator)
-_Pending: filled in from the latest CI run (baseline flows + agent tasks, debug and release)._
+### On-device (GitHub Actions emulator, API 34 x86_64, Pixel 6 profile)
+Flows are driven over adb/uiautomator by `scripts/ci/*.py`; screenshots, uiautomator dumps,
+screen recordings of every agent task, logcat and the mock-LLM log are uploaded as the
+`emulator-evidence` artifact of each run. A local Stremio test addon (ffmpeg-generated video plus
+EN/ES subtitles) serves streams at `10.0.2.2:7000`.
+
+**Run #18** (full build at `28f0f8a9`, R8 release APK), baseline flows: **13/13 pass**
+
+| Flow | Release |
+|---|---|
+| Onboarding (guest → create profile → Home) | ✅ |
+| Install addon: Cinemeta / OpenSubtitles / local test addon | ✅ ✅ ✅ |
+| Home catalogs | ✅ |
+| Search "The Matrix" | ✅ |
+| Title details | ✅ |
+| Stream list (test addon) | ✅ |
+| Playback (ExoPlayer + h264/AAC decoders up) | ✅ |
+| Continue Watching row after playback | ✅ |
+| Library add (details → More actions → Add to library) and Library tab | ✅ |
+| Settings | ✅ |
+| Remove addon (with confirm dialog) | ✅ |
+
+Agent, configured **through the in-app settings UI** (custom OpenAI-compatible endpoint → scripted
+mock model on the host), in run #18:
+
+| Task | Result |
+|---|---|
+| Configure provider (base URL, Keystore-encrypted key, model) | ✅ |
+| "Play the first stream and turn on English subtitles" | ✅ `get_app_state → play_title → play_stream → player_select_subtitles → get_player_state`; player verified in logcat |
+| "What's on my continue-watching list?" | ✅ `get_continue_watching` → "Continue watching: The Matrix." |
+| "Install the OpenSubtitles addon" | ⚠️ `install_addon` succeeded; the check failed only because the new row was below the fold (fixed in the script) |
+| "Find The Matrix and open its details" / "Add this to my library" | ⚠️ tools ran and navigated, but the *mock* picked the wrong search result (Inception); fixed in the mock |
+| "Search the web … then open their other movie" | ⚠️ the prompt was cut to 30 chars by `adb input text`; typing now goes in chunks |
+| Destructive action asks for confirmation | ⚠️ the dialog appeared ("Remove addon? The assistant wants to uninstall 'OpenSubtitles v3'") but the script couldn't see its test tags; it now taps the dialog's buttons by label |
+
+**Bug found only on the device:** every agent request failed with `PatternSyntaxException` because
+the `${NAME}` placeholder regex ended in a bare `}` — accepted by the JVM that runs unit tests,
+rejected by Android's ICU engine. Fixed, with `RegexPortabilityTest` scanning agent sources for it.
+
+The debug build (unminified) hits a 5 s input-dispatch ANR during its first cold start on the
+software-rendered CI emulator, which derailed its run; the script now does a warm-up launch.
+
+The DeepSeek run on the emulator needs the `DEEPSEEK_API_KEY` Actions secret; the same agent code
+was exercised against real `deepseek-flash` by the JVM live tests (§4).
 
 ## 5. Known limitations
 - No KVM in the development container: all on-device evidence comes from CI emulators (artifacts

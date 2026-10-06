@@ -18,12 +18,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 def last_result(messages, name):
     for msg in reversed(messages):
-        if msg.get("role") == "tool" and msg.get("name", name) == name:
+        if msg.get("role") == "tool" and msg.get("name") == name:
             try:
                 return json.loads(msg.get("content") or "{}")
             except json.JSONDecodeError:
                 return {}
-    # Fall back to matching by tool_call_id -> name
+    # Tool messages usually carry only tool_call_id: map it back to the call's function name.
     calls = {}
     for msg in messages:
         for call in msg.get("tool_calls") or []:
@@ -39,12 +39,16 @@ def last_result(messages, name):
 
 def first_result_id(result, name_hint=None, type_hint=None):
     items = result.get("results") or result.get("items") or []
-    for item in items:
-        if type_hint and item.get("type") != type_hint:
-            continue
-        if name_hint and name_hint.lower() != (item.get("name") or "").lower():
-            continue
-        return item.get("id"), item.get("type")
+    def name(item):
+        return (item.get("name") or item.get("title") or "").lower()
+    hint = (name_hint or "").lower()
+    # Exact title first, then a title containing the hint, then the first item of the right type.
+    for match in (lambda i: name(i) == hint, lambda i: hint in name(i), lambda i: True):
+        for item in items:
+            if type_hint and item.get("type") not in (None, type_hint):
+                continue
+            if not hint or match(item):
+                return item.get("id"), item.get("type") or type_hint
     if items:
         return items[0].get("id"), items[0].get("type")
     return None, None
