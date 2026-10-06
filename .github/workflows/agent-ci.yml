@@ -154,6 +154,8 @@ jobs:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           # Debug runs the deterministic mock provider; release runs DeepSeek when the secret exists.
           RELEASE_AGENT_PROVIDER: ${{ secrets.DEEPSEEK_API_KEY != '' && 'deepseek' || 'mock' }}
+          # qemu crashed during the 2nd-6th screenrecord of a run in #22-#25; keep screenshots only.
+          AGENT_MAX_RECORDINGS: "0"
         with:
           api-level: 34
           arch: x86_64
