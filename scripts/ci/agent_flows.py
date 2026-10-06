@@ -265,13 +265,14 @@ def main():
     if not flow.step("Configure provider in assistant settings", configure_provider):
         flow.report()
         return
+    # Order: tasks not yet seen passing on a device first (CI emulators have died mid-run).
     flow.step("Agent: install the OpenSubtitles addon", task_install_addon)
+    flow.step("Agent: what's on my continue-watching list", task_continue_watching)
+    flow.step("Agent: destructive action asks for confirmation", task_destructive_confirmation)
+    flow.step("Agent: web search director, open their other movie", task_web_then_open)
     flow.step("Agent: find The Matrix and open its details", task_find_matrix)
     flow.step("Agent: add this to my library", task_add_to_library)
     flow.step("Agent: play first stream + English subtitles", task_play_with_subtitles)
-    flow.step("Agent: web search director, open their other movie", task_web_then_open)
-    flow.step("Agent: what's on my continue-watching list", task_continue_watching)
-    flow.step("Agent: destructive action asks for confirmation", task_destructive_confirmation)
     with open(f"{ui.OUT}/agent-logcat.txt", "w") as fh:
         fh.write(ui.sh("logcat", "-d", timeout=120))
     flow.report()

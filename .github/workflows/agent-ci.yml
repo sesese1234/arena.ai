@@ -142,6 +142,12 @@ jobs:
         run: |
           echo "debug=$(ls apks/*full-debug*.apk | head -1)" >> "$GITHUB_OUTPUT"
           echo "release=$(ls apks/*x86_64*release*.apk apks/*release*x86_64*.apk 2>/dev/null | head -1)" >> "$GITHUB_OUTPUT"
+      - name: Start host monitor
+        # The emulator process died ~16 min into the release flows in runs #20-#22 with nothing in
+        # its output; record host memory/disk/top processes to find out why.
+        run: |
+          mkdir -p flow-artifacts
+          nohup bash -c 'while true; do date -u; free -m; df -h / | tail -1; ps -eo pid,rss,pcpu,comm --sort=-rss | head -6; echo; sleep 30; done' > flow-artifacts/host-monitor.log 2>&1 &
       - name: Run flows on emulator
         uses: reactivecircus/android-emulator-runner@v2
         env:
@@ -162,6 +168,12 @@ jobs:
           script: |
             bash scripts/ci/run-emulator-flows.sh "${{ steps.apk.outputs.release }}" release
             bash scripts/ci/run-emulator-flows.sh "${{ steps.apk.outputs.debug }}" debug
+      - name: Host diagnostics
+        if: always()
+        run: |
+          sudo dmesg -T | grep -iE "oom|killed process|qemu|out of memory" | tail -40 > flow-artifacts/host-dmesg.txt || true
+          cat flow-artifacts/host-dmesg.txt
+          tail -40 flow-artifacts/host-monitor.log || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
