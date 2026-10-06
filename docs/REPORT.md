@@ -131,28 +131,29 @@ dropped, #20 re-confirmed **13/13 baseline flows** on the release build and the 
 Matrix" opened Inception. The tool now starts the search itself (`SearchRepository.search` flips the
 state to loading synchronously); `play_title` does the same for streams.
 
-**Runs #21–#24** (APKs from run #21 at `2c04a9ce`, which include both agent fixes): the release
+**Runs #21–#26** (APKs from run #21 at `2c04a9ce`, which include both agent fixes): the release
 build passed **13/13 baseline flows in every run**, and each of the seven agent tasks passed on the
 device at least once:
 
 | Agent task (mock provider configured in the app UI) | Passed in |
 |---|---|
 | "Install the OpenSubtitles addon" → `install_addon`, addon listed in Settings | #20, #21, #22, #23, #24 |
-| "Find The Matrix and open its details" → `search_titles` → `open_title(tt0133093)`, details screen shows The Matrix | #21, #22, #24 |
+| "Find The Matrix and open its details" → `search_titles` → `open_title(tt0133093)`, details screen shows The Matrix | #21, #22, #24, #25, #26 |
 | "What's on my continue-watching list?" → "Continue watching: The Matrix." | #18, #23, #24 |
 | "Remove the OpenSubtitles addon" → confirmation dialog shown, approved, `remove_addon` | #23, #24 |
 | "Search the web for who directed The Matrix, then open their other movie" → `web_search` → `search_titles` → `open_title`, Speed Racer (2008) details on screen | #23, #24 |
 | "Play the first stream and turn on English subtitles" → `play_title` → `play_stream` → `player_select_subtitles`; player verified in logcat | #18 |
-| "Add this to my library" → `get_app_state` → `add_to_library` | tool ran in #18; see run #25 below |
+| "Add this to my library" (on The Matrix's details) → `get_app_state` → `add_to_library`, The Matrix shown in the Library tab | #26 |
 
-Every run from #20 on lost the emulator 17–22 minutes after boot, partway through the agent tasks.
+Every run from #20 on lost the emulator 14–22 minutes after boot, partway through the agent tasks.
 The host monitor added in #23 shows `qemu-system-x86` itself crashing: with 4 GB of guest RAM the
 7.9 GB runner was swapping, but with 2.5 GB (#24) it still had 2.3 GB free and no swap, and the
 crash happened anyway; the emulator's crash reporter then wrote a ~7 GB dump before the process
-exited. Nothing points at the app: the logcat captured before the agent phase has no
+exited. Turning screen recording off (#26) didn't change it either. Nothing points at the app: the logcat captured before the agent phase has no
 `FATAL EXCEPTION` or app ANR, and an app crash can't take down the emulator process (the device
-log after the loss can't be read). The harness now fails fast once adb loses the device, writes the report regardless, runs
-the tasks still unconfirmed first and limits screen recording (host GPU path) to three tasks.
+log after the loss can't be read). The harness now fails fast once adb loses the device and writes the report regardless; the
+workflow's `flows: agent-setup` and `agent_tasks` inputs run only the baseline steps the agent
+needs and order the agent tasks, so the tasks still missing evidence fit in the emulator's lifetime.
 
 The DeepSeek run on the emulator needs the `DEEPSEEK_API_KEY` Actions secret; the same agent code
 was exercised against real `deepseek-flash` by the JVM live tests (§4).
