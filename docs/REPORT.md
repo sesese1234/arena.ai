@@ -145,23 +145,34 @@ device at least once:
 | "Play the first stream and turn on English subtitles" → `play_title` → `play_stream` → `player_select_subtitles`; player verified in logcat | #18 |
 | "Add this to my library" (on The Matrix's details) → `get_app_state` → `add_to_library`, The Matrix shown in the Library tab | #26 |
 
-Every run from #20 on lost the emulator 14–22 minutes after boot, partway through the agent tasks.
-The host monitor added in #23 shows `qemu-system-x86` itself crashing: with 4 GB of guest RAM the
-7.9 GB runner was swapping, but with 2.5 GB (#24) it still had 2.3 GB free and no swap, and the
-crash happened anyway; the emulator's crash reporter then wrote a ~7 GB dump before the process
-exited. Turning screen recording off (#26) didn't change it either. Nothing points at the app: the logcat captured before the agent phase has no
-`FATAL EXCEPTION` or app ANR, and an app crash can't take down the emulator process (the device
-log after the loss can't be read). The harness now fails fast once adb loses the device and writes the report regardless; the
+Every run from #20 on lost the emulator partway through the agent tasks, 10–22 minutes after
+boot. Runs #23–#30 narrowed it down:
+
+- **Not host memory.** With 4 GB of guest RAM the 7.9 GB runner swapped; with 2.5 GB (#24 on) it
+  kept 2.3 GB free and no swap, and the emulator still died.
+- **Not screen recording or Vulkan.** Recording off (#26) and `-feature -Vulkan` (#28) changed
+  nothing.
+- **Not a fixed lifetime.** With `flows: agent-setup` (#27–#30) it died ~10 minutes after boot,
+  as soon as the agent started playback.
+- **It is the emulator segfaulting.** The disk spike before each loss was `systemd-coredump`
+  writing a 6 GB core of the emulator (#29). The core's metadata (#30): `qemu-system-x86_64-headless`,
+  `SIGSEGV` on a worker thread inside the emulator binary, while the agent was starting playback
+  of The Matrix through `play_title` → `play_stream` (the same in #26–#30). An app can't make
+  the host emulator process segfault; the suspect is the emulator's host-side video decoder
+  (`hwcodec.avcdec=2`), which run #31 turns off with `-feature -HardwareDecoder`.
+
+The harness now fails fast once adb loses the device and writes the report regardless; the
 workflow's `flows: agent-setup` and `agent_tasks` inputs run only the baseline steps the agent
-needs and order the agent tasks, so the tasks still missing evidence fit in the emulator's lifetime.
+tasks need and choose their order.
 
 The DeepSeek run on the emulator needs the `DEEPSEEK_API_KEY` Actions secret; the same agent code
 was exercised against real `deepseek-flash` by the JVM live tests (§4).
 
 ## 5. Known limitations
 - No KVM in the development container: all on-device evidence comes from CI emulators (artifacts
-  are kept 14 days). The hosted runner's emulator (API 34, software GPU) crashes 17–22 minutes
-  into a run, so one run can't always cover every flow; results above are aggregated per run.
+  are kept 14 days). The hosted runner's emulator (API 34, emulator 37.2.12) segfaults during
+  agent-started playback (see §4), so one run hasn't covered every flow; results above are
+  aggregated per run.
 - The unminified debug build hits input-dispatch ANRs on the software-rendered CI emulator, so the
   on-device evidence is from the R8 release build (the debug pass runs after it, time-boxed).
 - `DEEPSEEK_API_KEY` must be added as an Actions secret by the repo owner (automated secret
