@@ -17,6 +17,15 @@ os.makedirs(OUT, exist_ok=True)
 
 def sh(*args, check=False, timeout=120):
     result = subprocess.run([ADB, *args], capture_output=True, text=True, timeout=timeout)
+    if result.returncode != 0 and ("not found" in result.stderr or "offline" in result.stderr):
+        # The emulator dropped off adb once mid-run (run #20); try to get it back once.
+        print(f"  [adb] device lost ({result.stderr.strip()[:80]}); reconnecting", flush=True)
+        try:
+            subprocess.run([ADB, "reconnect"], capture_output=True, timeout=30)
+            subprocess.run([ADB, "wait-for-device"], capture_output=True, timeout=90)
+        except subprocess.TimeoutExpired:
+            pass
+        result = subprocess.run([ADB, *args], capture_output=True, text=True, timeout=timeout)
     if check and result.returncode != 0:
         raise RuntimeError(f"adb {' '.join(args)} failed: {result.stderr.strip()}")
     return result.stdout

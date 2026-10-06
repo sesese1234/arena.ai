@@ -53,10 +53,13 @@ internal fun ToolRegistry.registerBrowseTools() {
             }
                 nav.selectTab(AppScreenTab.Search)
                 AgentBridge.requestSearchQuery(query)
-            } else {
-                SearchRepository.search(query, AddonRepository.uiState.value.addons)
             }
-            delay(400)
+            // Start the search here rather than relying on the Search screen's debounced call:
+            // search() flips the state to loading synchronously, so the wait below can't pick up
+            // the previous query's finished results (the screen's later call for the same query
+            // reuses this request).
+            SearchRepository.search(query, AddonRepository.uiState.value.addons)
+            delay(100)
             val state = withTimeoutOrNull(30_000) {
                 SearchRepository.uiState.first { !it.isLoading && (it.sections.isNotEmpty() || it.emptyStateReason != null) }
             } ?: SearchRepository.uiState.value
@@ -277,6 +280,9 @@ internal fun ToolRegistry.registerPlaybackTools() {
             val route = awaitRoute(10_000) { it is StreamRoute || it is PlayerRoute }
             if (route is PlayerRoute) return@run okResult("status" to "playing (downloaded copy or autoplay)", "title" to meta.name)
             awaitStreamScreen()
+            // Same request the stream screen makes; it is a no-op if already running, and it stops
+            // waitForStreams from returning the previous title's finished stream list.
+            StreamsRepository.load(type, videoId, meta.id, video?.season, video?.episode, manualSelection = true)
             val streams = waitForStreams(20_000)
             okResult(
                 "status" to if (route != null) "stream_list_open" else "requested",

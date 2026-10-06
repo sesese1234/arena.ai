@@ -121,6 +121,16 @@ rejected by Android's ICU engine. Fixed, with `RegexPortabilityTest` scanning ag
 The debug build (unminified) hits a 5 s input-dispatch ANR during its first cold start on the
 software-rendered CI emulator, which derailed its run; the script now does a warm-up launch.
 
+**Runs #19–#20** (same APKs, harness fixes): #19's runner stopped reporting (no log, no artifacts)
+and #20 hung after the emulator dropped off adb — both traced to a warm-up `am start -W` with no
+timeout, now removed, with every adb call bounded and one reconnect attempt. Before the emulator
+dropped, #20 re-confirmed **13/13 baseline flows** on the release build and the agent task
+**"Install the OpenSubtitles addon" passed end to end** (`install_addon` → addon listed).
+#20 also exposed a real agent bug: `search_titles` could return the *previous* search's results
+(the Search screen starts the query after a debounce, and the tool only waited 400 ms), so "Find The
+Matrix" opened Inception. The tool now starts the search itself (`SearchRepository.search` flips the
+state to loading synchronously); `play_title` does the same for streams.
+
 The DeepSeek run on the emulator needs the `DEEPSEEK_API_KEY` Actions secret; the same agent code
 was exercised against real `deepseek-flash` by the JVM live tests (§4).
 
