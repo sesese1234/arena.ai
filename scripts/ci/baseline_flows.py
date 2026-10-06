@@ -7,6 +7,7 @@ so one broken flow doesn't hide the others. Usage:
     FLOW_OUT=out python3 scripts/ci/baseline_flows.py --addon-host 10.0.2.2:7000
 """
 import argparse
+import os
 import re
 import sys
 import time
@@ -343,17 +344,23 @@ def main():
     flow = Flow(args.title, before=ensure_signed_in)
     flow.step("Onboarding (continue without account)", onboarding)
     flow.step("Install addon: Cinemeta", install_addon(CINEMETA, "Cinemeta"))
-    flow.step("Install addon: OpenSubtitles", install_addon(OPENSUBS, "OpenSubtitles"))
+    if os.environ.get("FLOWS", "full") != "agent-setup":
+        flow.step("Install addon: OpenSubtitles", install_addon(OPENSUBS, "OpenSubtitles"))
     flow.step("Install addon: local test streams", install_addon(test_addon, "Agent Test Streams"))
-    flow.step("Browse catalogs", browse_catalogs)
+    # FLOWS=agent-setup runs only what the agent tasks depend on (the test addon's streams and a
+    # Continue Watching entry), leaving more of the emulator's lifetime for the agent tasks.
+    full = os.environ.get("FLOWS", "full") != "agent-setup"
+    if full:
+        flow.step("Browse catalogs", browse_catalogs)
     flow.step("Search", search_title)
     flow.step("Open title details", open_details)
     flow.step("List streams", list_streams)
     flow.step("Start playback", start_playback)
-    flow.step("Continue watching", continue_watching)
-    flow.step("Library add/view", library_flow)
-    flow.step("Settings", settings_flow)
-    flow.step("Remove addon", remove_addon)
+    if full:
+        flow.step("Continue watching", continue_watching)
+        flow.step("Library add/view", library_flow)
+        flow.step("Settings", settings_flow)
+        flow.step("Remove addon", remove_addon)
     with open(f"{ui.OUT}/logcat.txt", "w") as fh:
         fh.write(ui.sh("logcat", "-d", timeout=120))
     ok = flow.report()

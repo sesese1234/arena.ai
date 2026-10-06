@@ -14,6 +14,14 @@ on:
         description: Reuse the APKs from this earlier run id and only run the emulator jobs
         type: string
         default: ""
+      flows:
+        description: "full = every baseline flow; agent-setup = only what the agent tasks need"
+        type: string
+        default: full
+      agent_tasks:
+        description: Agent task order (find,library,play,install,continue,remove,web)
+        type: string
+        default: ""
 
 concurrency:
   group: agent-ci-${{ github.ref }}
@@ -154,8 +162,10 @@ jobs:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           # Debug runs the deterministic mock provider; release runs DeepSeek when the secret exists.
           RELEASE_AGENT_PROVIDER: ${{ secrets.DEEPSEEK_API_KEY != '' && 'deepseek' || 'mock' }}
-          # qemu crashed during the 2nd-6th screenrecord of a run in #22-#25; keep screenshots only.
+          # Screen recording off: fewer moving parts on an emulator that dies 14-22 min after boot.
           AGENT_MAX_RECORDINGS: "0"
+          FLOWS: ${{ inputs.flows || 'full' }}
+          AGENT_TASKS: ${{ inputs.agent_tasks || 'find,library,play,install,continue,remove,web' }}
         with:
           api-level: 34
           arch: x86_64
