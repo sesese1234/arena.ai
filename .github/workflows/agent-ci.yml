@@ -199,6 +199,11 @@ jobs:
         run: |
           sudo dmesg -T | grep -iE "oom|killed process|qemu|out of memory" | tail -40 > flow-artifacts/host-dmesg.txt || true
           cat flow-artifacts/host-dmesg.txt
+          # Run #29: systemd-coredump caught qemu-system-x86 (crashpad didn't). Keep its signal and stack.
+          sudo coredumpctl list --no-pager > flow-artifacts/coredumps.txt 2>&1 || true
+          sudo coredumpctl info --no-pager qemu-system-x86_64 > flow-artifacts/qemu-coredump-info.txt 2>&1 \
+            || sudo coredumpctl info --no-pager > flow-artifacts/qemu-coredump-info.txt 2>&1 || true
+          head -150 flow-artifacts/qemu-coredump-info.txt || true
           # The emulator's crash handler (crashpad) keeps its reports here; keep the small ones.
           ls -laR /tmp/android-runner 2>/dev/null | head -60 > flow-artifacts/emulator-crash-db.txt || true
           mkdir -p flow-artifacts/emulator-crash
