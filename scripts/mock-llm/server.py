@@ -156,7 +156,11 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
         request = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
-        action = plan(request.get("messages", []))
+        messages = request.get("messages", [])
+        if messages and messages[-1].get("role") == "tool":
+            # The tool result the next step is derived from (helps tell an app bug from a mock bug).
+            print(f"[mock-llm] tool result: {(messages[-1].get('content') or '')[:400]}", flush=True)
+        action = plan(messages)
         print(f"[mock-llm] tools={len(request.get('tools') or [])} -> {action}", flush=True)
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")

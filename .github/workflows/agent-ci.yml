@@ -177,7 +177,7 @@ jobs:
           # Screen recording off: fewer moving parts on an emulator that dies 14-22 min after boot.
           AGENT_MAX_RECORDINGS: "0"
           FLOWS: ${{ inputs.flows || 'full' }}
-          AGENT_TASKS: ${{ inputs.agent_tasks || 'find,library,play,install,continue,remove,web' }}
+          AGENT_TASKS: ${{ inputs.agent_tasks || 'continue,install,remove,web,play,find,library' }}
         with:
           api-level: 34
           arch: x86_64

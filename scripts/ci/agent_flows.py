@@ -123,6 +123,25 @@ def chat_transcript():
     return tools, replies, errors
 
 
+def tools_since_prompt(prompt, max_swipes=6):
+    """Tool cards of the latest request. In landscape (player) the chat panel is short and earlier
+    cards scroll out of view, so scroll the message list back until the prompt itself shows."""
+    seen = []
+    for _ in range(max_swipes + 1):
+        nodes = ui.dump()
+        seen += [n.desc.replace("Tool ", "") for n in nodes if n.desc.startswith("Tool ")]
+        if any(prompt[:30] in n.label for n in nodes if n.rid.endswith("agent_user_message")):
+            break
+        box = next((n for n in nodes if n.rid.endswith("agent_messages")), None)
+        if box is None:
+            break
+        x1, y1, x2, y2 = box.bounds
+        x = (x1 + x2) // 2
+        ui.sh("shell", "input", "swipe", str(x), str(y1 + (y2 - y1) // 5), str(x), str(y2 - (y2 - y1) // 10), "400")
+        time.sleep(0.8)
+    return sorted(set(seen))
+
+
 def confirmation_buttons():
     """(confirm, cancel) nodes of the assistant's confirmation dialog, or None. The dialog is its
     own window, so its test tags may not be exported; fall back to the Cancel button and the
@@ -141,9 +160,8 @@ def confirmation_buttons():
     return (row[0], cancel) if row else None
 
 
-# The CI emulator's qemu process has crashed 17-22 minutes in during agent tasks (runs #21-#24, with
-# 4 GB and 2.5 GB of guest RAM alike). Screen recording goes through the emulator's host GPU path,
-# so only the first few tasks are recorded; the rest keep screenshots and uiautomator dumps.
+# Screen recordings of the first few tasks (AGENT_MAX_RECORDINGS; CI sets 0 while the emulator's
+# qemu segfaults are investigated, see docs/REPORT.md); every task keeps screenshots and dumps.
 MAX_RECORDINGS = int(os.environ.get("AGENT_MAX_RECORDINGS", "3"))
 _recorded = 0
 
@@ -187,10 +205,11 @@ def _ask(prompt, name, timeout, approve):
     ui.screenshot(f"agent_{name}_chat")
     tools, replies, errors = chat_transcript()
     reply = replies[-1] if replies else ""
-    print(f"  tools={sorted(set(seen_tools) | set(tools))} reply={reply[:200]!r} errors={errors}", flush=True)
+    tools = sorted(set(seen_tools) | set(tools) | set(tools_since_prompt(prompt)))
+    print(f"  tools={tools} reply={reply[:200]!r} errors={errors}", flush=True)
     if errors:
         raise AssertionError(f"agent error: {errors[-1]}")
-    return sorted(set(seen_tools) | set(tools)), reply, confirmed
+    return tools, reply, confirmed
 
 
 def screen_labels(name):
@@ -251,6 +270,8 @@ def task_web_then_open():
     tools, reply, _ = ask("Search the web for who directed The Matrix, then open their other movie", "web_open", timeout=300)
     assert "web_search" in tools and "open_title" in tools, tools
     labels = screen_labels("web_open")
+    # The details screen, not just search results that mention it (run #32 ended on the results).
+    assert "Speed Racer" in labels and "Director" in labels, labels[:300]
     return f"{reply[:150]} | screen: {labels[:120]}"
 
 
@@ -288,7 +309,7 @@ def main():
     }
     # The CI emulator dies 14-22 minutes after boot, so AGENT_TASKS can put the tasks that still need
     # evidence first. Removing OpenSubtitles needs the install task before it.
-    order = os.environ.get("AGENT_TASKS", "find,library,play,install,continue,remove,web").split(",")
+    order = os.environ.get("AGENT_TASKS", "continue,install,remove,web,play,find,library").split(",")
     for key in order:
         flow.step(*tasks[key.strip()])
     try:
