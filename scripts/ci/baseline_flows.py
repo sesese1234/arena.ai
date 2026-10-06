@@ -357,8 +357,10 @@ def main():
     flow.step("Open title details", open_details)
     flow.step("List streams", list_streams)
     flow.step("Start playback", start_playback)
+    # Leaving the player through the UI is what saves watch progress (run #33's agent-setup run
+    # force-stopped the app in the player and Continue Watching came back empty).
+    flow.step("Continue watching", continue_watching)
     if full:
-        flow.step("Continue watching", continue_watching)
         flow.step("Library add/view", library_flow)
         flow.step("Settings", settings_flow)
         flow.step("Remove addon", remove_addon)
