@@ -1,6 +1,6 @@
 # Final report: in-app AI agent for a Stremio-compatible Android app
 
-_Status as of 2026-10-05. Branches: `claude/streamio-android-agent-ur2z97` (requested) and
+_Status as of 2026-10-06. Branches: `claude/streamio-android-agent-ur2z97` (requested) and
 `ccr-09b73190-s7c7p6` (session branch); both hold the same commits._
 
 ## 1. Base app
@@ -131,22 +131,24 @@ dropped, #20 re-confirmed **13/13 baseline flows** on the release build and the 
 Matrix" opened Inception. The tool now starts the search itself (`SearchRepository.search` flips the
 state to loading synchronously); `play_title` does the same for streams.
 
-**Runs #21–#33** (APKs from run #21 at `2c04a9ce`, which include both agent fixes): the release
-build passed **13/13 baseline flows in every run**, and each of the seven agent tasks passed on the
-device at least once:
+**Runs #21–#34** (release APK from run #21 at `2c04a9ce`, which has both agent fixes): the baseline
+flows passed in every run (13/13 with `flows: full`; the setup subset with `flows: agent-setup`),
+and **every agent task passed on the device with this build**. The "strict" column is the run
+whose checks verify the outcome on screen and read every tool card; the mock-LLM log in each
+run's artifact also records each tool result the agent got back.
 
-| Agent task (mock provider configured in the app UI) | Passed in |
-|---|---|
-| "Install the OpenSubtitles addon" → `install_addon`, addon listed in Settings | #20, #21, #22, #23, #24, #33 |
-| "Find The Matrix and open its details" → `search_titles` → `open_title(tt0133093)`, details screen shows The Matrix | #21, #22, #24, #25, #26, #32 |
-| "What's on my continue-watching list?" → "Continue watching: The Matrix." | #18, #23, #24, #32 (reply on screen; tool card read fixed after) |
-| "Remove the OpenSubtitles addon" → confirmation dialog shown, approved, `remove_addon` | #23, #24, #32, #33 |
-| "Search the web for who directed The Matrix, then open their other movie" → `web_search` → `search_titles` → `open_title`, Speed Racer (2008) details on screen (`open_title(tt0811080)`) | #23, #24, #33 (in #33 `web_search` timed out from the CI network and the agent carried on with what it knew) |
-| "Play The Matrix and turn on English subtitles" → `search_titles` → `play_title(tt0133093)` → `play_stream` → `player_select_subtitles(English)` → `get_player_state`; the test video plays with the "[EN] English subtitles are on" cue on screen | #18 (as "play the first stream"), #32 |
-| "Add this to my library" (on The Matrix's details) → `get_app_state` → `add_to_library`, The Matrix shown in the Library tab | #26 |
+| Agent task (provider configured in the app UI) | What happened on the device | Strict pass | Also passed |
+|---|---|---|---|
+| "Install the OpenSubtitles addon" | `install_addon` → "OpenSubtitles v3" listed under Addons | #33 | #20–#24 |
+| "Remove the OpenSubtitles addon" | confirmation dialog ("Remove addon? The assistant wants to uninstall…") → approved → `remove_addon`, `still_installed: false` | #33 | #23, #24, #32 |
+| "Search the web for who directed The Matrix, then open their other movie" | `web_search` → `search_titles("Speed Racer")` → `open_title(tt0811080)`; Speed Racer (2008) details with "Director: Lana Wachowski…" on screen (in #33 `web_search` timed out on the CI network and the agent carried on) | #33 | #23, #24 |
+| "Play The Matrix and turn on English subtitles" | `search_titles` → `play_title(tt0133093)` (stream list, 1 stream) → `play_stream(0)` → `player_select_subtitles` ("English (Agent Test Streams)") → `get_player_state`; the test video plays with the "[EN] English subtitles are on" cue | #34 | #32; #18 as "play the first stream" |
+| "What's on my continue-watching list?" | `get_continue_watching` → The Matrix at 91 s / 1200 s → "Continue watching: The Matrix." | #34 | #18, #23, #24, #32 |
+| "Find The Matrix and open its details" | `search_titles` → `open_title(tt0133093)` → The Matrix details on screen | #34 | #21, #22, #24–#26, #32 |
+| "Add this to my library" (on The Matrix's details) | `get_app_state` → `add_to_library(tt0133093)` → The Matrix in the Library tab | #26 | — (the emulator crashed during this task in #32 and #34) |
 
-Every run from #20 on lost the emulator partway through the agent tasks, 10–22 minutes after
-boot. Runs #23–#30 narrowed it down:
+No single run got through all seven: every run from #20 on lost the emulator partway through the
+agent tasks, 10–25 minutes after boot. Runs #23–#34 narrowed it down:
 
 - **Not host memory.** With 4 GB of guest RAM the 7.9 GB runner swapped; with 2.5 GB (#24 on) it
   kept 2.3 GB free and no swap, and the emulator still died.
@@ -159,13 +161,13 @@ boot. Runs #23–#30 narrowed it down:
   `qemu-system-x86_64-headless`, `SIGSEGV` on a worker thread inside the emulator binary.
 - **Not playback or the video decoder.** Turning the host-side decoder off
   (`-feature -HardwareDecoder`, #31) didn't help, and #31 died before playback started.
-- **The common factor** across #22–#31 is The Matrix's details screen left up by the agent for
-  30–90 s (Speed Racer's and Inception's didn't trigger it, nor did The Matrix's when the
-  baseline flow passed through it in ~20 s). An app can't make the host emulator process
-  segfault, so this is an emulator bug (37.2.12, software GPU) that something on that screen
-  provokes; it hasn't been narrowed further. The play task now goes straight to the stream list
-  (`search_titles` → `play_title` → `play_stream` → `player_select_subtitles`), as a user asking
-  "Play The Matrix…" would.
+- **Usually after an agent-opened details screen.** In #22–#34 the crash came 30–90 s after the
+  agent left a details screen up (The Matrix's in most runs, Speed Racer's in #33), but not every
+  time (#23, #24, #26 survived some), and agent navigation opens details exactly as a tap does.
+  An app can't make the host emulator process segfault, so this is an emulator bug (37.2.12,
+  software GPU) that hasn't been narrowed further. The play task now goes straight to the stream
+  list, as a user asking "Play The Matrix…" would, and tasks that leave a details screen up run
+  last.
 
 The harness now fails fast once adb loses the device and writes the report regardless; the
 workflow's `flows: agent-setup` and `agent_tasks` inputs run only the baseline steps the agent
@@ -176,9 +178,12 @@ was exercised against real `deepseek-flash` by the JVM live tests (§4).
 
 ## 5. Known limitations
 - No KVM in the development container: all on-device evidence comes from CI emulators (artifacts
-  are kept 14 days). The hosted runner's emulator (API 34, emulator 37.2.12) segfaults during
-  agent-started playback (see §4), so one run hasn't covered every flow; results above are
-  aggregated per run.
+  are kept 14 days). The hosted runner's emulator (API 34, emulator 37.2.12, software GPU)
+  segfaults 10–25 minutes into a run, usually after an agent-opened details screen (§4), so no
+  single run covered all seven agent tasks; the table in §4 cites the run for each.
+- The emulator runs used the scripted mock provider (no `DEEPSEEK_API_KEY` secret yet); the real
+  model was exercised by the JVM live tests. With the secret set, the release emulator pass
+  switches to DeepSeek automatically.
 - The unminified debug build hits input-dispatch ANRs on the software-rendered CI emulator, so the
   on-device evidence is from the R8 release build (the debug pass runs after it, time-boxed).
 - `DEEPSEEK_API_KEY` must be added as an Actions secret by the repo owner (automated secret
