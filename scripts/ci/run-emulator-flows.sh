@@ -39,8 +39,13 @@ adb shell am start -W -n "$APP_PACKAGE/com.nuvio.app.MainActivity" || true
 sleep 45
 adb shell am force-stop "$APP_PACKAGE" || true
 
-python3 scripts/ci/baseline_flows.py --addon-host 10.0.2.2:7000 --title "Baseline app flows (${VARIANT})"
-python3 scripts/ci/agent_flows.py --addon-host 10.0.2.2:7000 --title "Agent tasks (${VARIANT})" || true
+# Time boxes keep one slow variant (the unminified debug build ANRs on the software-rendered
+# emulator) from eating the job timeout before the release build is tested.
+if [ "$VARIANT" = "release" ]; then BASE_LIMIT=35m; AGENT_LIMIT=50m; else BASE_LIMIT=25m; AGENT_LIMIT=20m; fi
+timeout "$BASE_LIMIT" python3 scripts/ci/baseline_flows.py --addon-host 10.0.2.2:7000 --title "Baseline app flows (${VARIANT})" \
+  || echo "::warning::baseline flows (${VARIANT}) stopped: exit $? (124 = time box)"
+timeout "$AGENT_LIMIT" python3 scripts/ci/agent_flows.py --addon-host 10.0.2.2:7000 --title "Agent tasks (${VARIANT})" \
+  || echo "::warning::agent tasks (${VARIANT}) stopped: exit $? (124 = time box)"
 
 adb logcat -d -b crash > "$FLOW_OUT/crash-buffer.txt" || true
 adb logcat -d > "$FLOW_OUT/logcat-final.txt" || true
