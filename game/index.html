@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Neon Void — Arcade Space Shooter</title>
+<meta name="description" content="Neon Void is a fast, neon arcade space shooter. Blast waves of enemies, grab power-ups, chase the high score.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 3 L27 26 L16 20 L5 26 Z' fill='%2300f0ff'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div class="hud-left">
+    <div id="score">0</div>
+    <div id="multiplier">×1</div>
+  </div>
+  <div class="hud-center">
+    <div id="wave-label">WAVE 1</div>
+  </div>
+  <div class="hud-right">
+    <div id="lives"></div>
+    <div id="hiscore">HI 0</div>
+  </div>
+</div>
+
+<!-- Top-right buttons -->
+<div id="top-buttons">
+  <button id="mute-btn" title="Mute (M)" aria-label="Toggle sound">🔊</button>
+  <button id="pause-btn" title="Pause (P)" aria-label="Pause game">⏸</button>
+</div>
+
+<!-- Title screen -->
+<div id="title-screen" class="screen">
+  <h1 class="game-title">NEON<span>VOID</span></h1>
+  <p class="tagline">Blast the swarm. Grab the power-ups. Chase the high score.</p>
+  <button id="start-btn" class="big-btn">▶ &nbsp;START GAME</button>
+  <div class="controls-info">
+    <div><kbd>WASD</kbd> / <kbd>←↑↓→</kbd> or <strong>drag</strong> to move</div>
+    <div>Your ship fires automatically</div>
+    <div><kbd>P</kbd> pause &nbsp;·&nbsp; <kbd>M</kbd> mute</div>
+  </div>
+  <div class="powerup-info">
+    <span class="pu pu-p">P</span> weapon up &nbsp;
+    <span class="pu pu-r">R</span> rapid fire &nbsp;
+    <span class="pu pu-s">S</span> shield &nbsp;
+    <span class="pu pu-l">♥</span> extra life
+  </div>
+  <p id="title-hiscore" class="hiscore-line"></p>
+</div>
+
+<!-- Pause screen -->
+<div id="pause-screen" class="screen hidden">
+  <h2 class="screen-title">PAUSED</h2>
+  <button id="resume-btn" class="big-btn">▶ &nbsp;RESUME</button>
+  <button id="restart-btn" class="small-btn">↻ Restart</button>
+</div>
+
+<!-- Game over screen -->
+<div id="gameover-screen" class="screen hidden">
+  <h2 class="screen-title gameover-title">GAME OVER</h2>
+  <p id="final-score" class="final-score">0</p>
+  <p id="new-record" class="new-record hidden">★ NEW HIGH SCORE! ★</p>
+  <p id="gameover-hiscore" class="hiscore-line"></p>
+  <button id="play-again-btn" class="big-btn">↻ &nbsp;PLAY AGAIN</button>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
